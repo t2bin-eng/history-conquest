@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useGameStore, isColorTaken } from "@/store/gameStore";
@@ -31,6 +31,14 @@ export default function RegisterPage() {
 
   const [teamName, setTeamName] = useState("");
   const myTeam = game.teams.find((t) => t.id === myTeamId) ?? null;
+
+  useEffect(() => {
+    if (game.status === "PLAYING" || game.status === "GOLDEN_TIME") {
+      router.push("/play");
+    } else if (game.status === "ENDED") {
+      router.push("/results");
+    }
+  }, [game.status, router]);
 
   const handleCreateTeam = () => {
     const trimmed = teamName.trim();

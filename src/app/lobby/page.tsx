@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useGameStore } from "@/store/gameStore";
 import { RegionMap } from "@/components/map/RegionMap";
@@ -8,9 +9,18 @@ import { MOCK_MAP_VIEWBOX } from "@/data/mockRegions";
 import { difficultyLabel } from "@/lib/regionDisplay";
 
 export default function LobbyPage() {
+  const router = useRouter();
   const { game, gameId, isLoading, myTeamId, setStartingRegion, setReady } = useGameStore();
   const myTeam = game.teams.find((t) => t.id === myTeamId) ?? null;
   const [previewRegionId, setPreviewRegionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (game.status === "PLAYING" || game.status === "GOLDEN_TIME") {
+      router.push("/play");
+    } else if (game.status === "ENDED") {
+      router.push("/results");
+    }
+  }, [game.status, router]);
 
   if (!gameId) {
     return (
