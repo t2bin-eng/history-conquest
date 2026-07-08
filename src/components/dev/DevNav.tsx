@@ -5,6 +5,8 @@ const ROUTES = [
   { href: "/register", label: "팀 등록" },
   { href: "/lobby", label: "학생 대기실" },
   { href: "/teacher", label: "교사 대시보드" },
+  { href: "/play", label: "게임 플레이" },
+  { href: "/results", label: "결과" },
 ];
 
 /** 개발 중 화면 간 빠른 이동용. 백엔드(Supabase) 연동 후 게임 코드 기반 라우팅으로 대체 예정 */

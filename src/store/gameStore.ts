@@ -1,15 +1,46 @@
 import { create } from "zustand";
-import type { Game, Team, TeamMember } from "@/types/game";
+import type { EventLog, EventType, Game, Question, Team, TeamMember } from "@/types/game";
 import { generateMockRegions } from "@/data/mockRegions";
+import { drawQuestion } from "@/data/mockQuestions";
+import {
+  applySurroundCaptures,
+  canChallengeRegion,
+  reconquestCooldownUntil,
+  syncTeamOwnedRegions,
+} from "@/lib/regionRules";
 
 function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function logEvent(
+  type: EventType,
+  regionId: string,
+  teamId: string,
+  payload: Record<string, unknown> = {}
+): EventLog {
+  return {
+    id: createId("event"),
+    timestamp: new Date().toISOString(),
+    type,
+    regionId,
+    teamId,
+    actorMemberName: null,
+    payload,
+  };
+}
+
+export interface ActiveChallenge {
+  regionId: string;
+  teamId: string;
+  question: Question;
 }
 
 interface GameStore {
   game: Game;
   /** 현재 브라우저 세션이 조작 중인 팀 (학생 화면용) */
   myTeamId: string | null;
+  activeChallenge: ActiveChallenge | null;
 
   registerTeam: (name: string, color: string) => string;
   setMyTeam: (teamId: string) => void;
@@ -21,6 +52,10 @@ interface GameStore {
   setReady: (teamId: string, isReady: boolean) => void;
   setTimeLimitSec: (timeLimitSec: number) => void;
   startGame: () => void;
+  endGame: () => void;
+  startChallenge: (regionId: string, teamId: string) => boolean;
+  submitChallengeAnswer: (selectedAnswer: string) => boolean;
+  cancelChallenge: () => void;
 }
 
 const initialGame: Game = {
@@ -35,9 +70,10 @@ const initialGame: Game = {
   eventLogs: [],
 };
 
-export const useGameStore = create<GameStore>((set) => ({
+export const useGameStore = create<GameStore>((set, get) => ({
   game: initialGame,
   myTeamId: null,
+  activeChallenge: null,
 
   registerTeam: (name, color) => {
     const id = createId("team");
@@ -138,15 +174,14 @@ export const useGameStore = create<GameStore>((set) => ({
 
   startGame: () => {
     set((state) => {
-      const teams = state.game.teams.map((t) =>
-        t.startingRegionId ? { ...t, ownedRegionIds: [t.startingRegionId] } : t
-      );
+      const cooldownUntil = reconquestCooldownUntil();
       const regions = state.game.regions.map((r) => {
-        const owner = teams.find((t) => t.startingRegionId === r.id);
+        const owner = state.game.teams.find((t) => t.startingRegionId === r.id);
         return owner
-          ? { ...r, ownerTeamId: owner.id, status: "OWNED" as const }
+          ? { ...r, ownerTeamId: owner.id, status: "OWNED" as const, cooldownUntil }
           : r;
       });
+      const teams = syncTeamOwnedRegions(state.game.teams, regions);
       return {
         game: {
           ...state.game,
@@ -158,8 +193,114 @@ export const useGameStore = create<GameStore>((set) => ({
       };
     });
   },
+
+  endGame: () => {
+    set((state) => ({
+      game: { ...state.game, status: "ENDED", endedAt: new Date().toISOString() },
+      activeChallenge: null,
+    }));
+  },
+
+  startChallenge: (regionId, teamId) => {
+    const { game } = get();
+    const region = game.regions.find((r) => r.id === regionId);
+    if (!region || game.status !== "PLAYING") return false;
+    if (!canChallengeRegion(region, teamId)) return false;
+
+    const question = drawQuestion(region.difficulty, regionId, teamId);
+    set({ activeChallenge: { regionId, teamId, question } });
+    return true;
+  },
+
+  submitChallengeAnswer: (selectedAnswer) => {
+    const { game, activeChallenge } = get();
+    if (!activeChallenge) return false;
+
+    const region = game.regions.find((r) => r.id === activeChallenge.regionId);
+    if (!region) {
+      set({ activeChallenge: null });
+      return false;
+    }
+
+    const correct = selectedAnswer === activeChallenge.question.answer;
+
+    if (!correct) {
+      const regions = game.regions.map((r) =>
+        r.id === region.id
+          ? { ...r, failedTeamIds: [...r.failedTeamIds, activeChallenge.teamId] }
+          : r
+      );
+      const teams = game.teams.map((t) =>
+        t.id === activeChallenge.teamId ? { ...t, comboStreak: 0 } : t
+      );
+      set({
+        game: {
+          ...game,
+          regions,
+          teams,
+          eventLogs: [
+            ...game.eventLogs,
+            logEvent("WRONG_ANSWER", region.id, activeChallenge.teamId),
+          ],
+        },
+        activeChallenge: null,
+      });
+      return false;
+    }
+
+    const wasOwnedByOther = region.status === "OWNED" && !!region.ownerTeamId;
+
+    let regions = game.regions.map((r) =>
+      r.id === region.id
+        ? {
+            ...r,
+            ownerTeamId: activeChallenge.teamId,
+            status: "OWNED" as const,
+            cooldownUntil: reconquestCooldownUntil(),
+            failedTeamIds: [],
+          }
+        : r
+    );
+
+    const surroundResult = applySurroundCaptures(regions);
+    regions = surroundResult.regions;
+
+    let teams = syncTeamOwnedRegions(game.teams, regions);
+    teams = teams.map((t) =>
+      t.id === activeChallenge.teamId
+        ? { ...t, score: t.score + region.points, comboStreak: t.comboStreak + 1 }
+        : t
+    );
+
+    const captureEvent = logEvent(
+      wasOwnedByOther ? "RECONQUEST" : "CAPTURE",
+      region.id,
+      activeChallenge.teamId,
+      { points: region.points }
+    );
+    const surroundEvents = surroundResult.captures.map((c) =>
+      logEvent("SURROUND", c.regionId, c.teamId)
+    );
+
+    set({
+      game: {
+        ...game,
+        regions,
+        teams,
+        eventLogs: [...game.eventLogs, captureEvent, ...surroundEvents],
+      },
+      activeChallenge: null,
+    });
+    return true;
+  },
+
+  cancelChallenge: () => set({ activeChallenge: null }),
 }));
 
 export function isColorTaken(teams: Team[], color: string, excludeTeamId?: string) {
   return teams.some((t) => t.color === color && t.id !== excludeTeamId);
+}
+
+if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
+  (window as unknown as { __gameStore?: typeof useGameStore }).__gameStore = useGameStore;
 }

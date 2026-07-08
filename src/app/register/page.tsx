@@ -7,8 +7,9 @@ import { TEAM_COLOR_PRESETS } from "@/data/teamPalette";
 import { ColorPicker } from "@/components/team/ColorPicker";
 import { MemberList } from "@/components/team/MemberList";
 import { FlagUploader } from "@/components/team/FlagUploader";
+import type { Team } from "@/types/game";
 
-function firstAvailableColor(teams: { color: string }[]) {
+function firstAvailableColor(teams: Team[]) {
   const preset = TEAM_COLOR_PRESETS.find((p) => !isColorTaken(teams, p.value));
   return preset?.value ?? TEAM_COLOR_PRESETS[0].value;
 }
