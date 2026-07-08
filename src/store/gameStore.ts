@@ -17,7 +17,7 @@ interface GameStore {
   removeMember: (teamId: string, memberId: string) => void;
   setTeamColor: (teamId: string, color: string) => void;
   setTeamFlag: (teamId: string, flagImageUrl: string) => void;
-  setStartingRegion: (teamId: string, regionId: string) => void;
+  setStartingRegion: (teamId: string, regionId: string | null) => void;
   setReady: (teamId: string, isReady: boolean) => void;
 }
 
