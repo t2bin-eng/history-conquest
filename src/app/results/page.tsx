@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import confetti from "canvas-confetti";
 import { useGameStore } from "@/store/gameStore";
@@ -10,8 +11,14 @@ import { Podium } from "@/components/results/Podium";
 import { computeTeamStats } from "@/lib/teamStats";
 
 export default function ResultsPage() {
-  const game = useGameStore((s) => s.game);
+  const router = useRouter();
+  const { game, leaveGame } = useGameStore();
   const { teams, regions, eventLogs } = game;
+
+  const handleLeaveGame = () => {
+    leaveGame();
+    router.push("/");
+  };
 
   const rankedTeams = [...teams].sort((a, b) => b.score - a.score);
   const maxOwned = Math.max(1, ...rankedTeams.map((t) => t.ownedRegionIds.length));
@@ -136,6 +143,14 @@ export default function ResultsPage() {
           </tbody>
         </table>
       </section>
+
+      <button
+        type="button"
+        onClick={handleLeaveGame}
+        className="self-center rounded-md bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
+      >
+        처음으로 돌아가기
+      </button>
     </main>
   );
 }
