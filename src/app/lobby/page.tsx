@@ -13,6 +13,7 @@ export default function LobbyPage() {
   const { game, gameId, isLoading, myTeamId, setStartingRegion, setReady } = useGameStore();
   const myTeam = game.teams.find((t) => t.id === myTeamId) ?? null;
   const [previewRegionId, setPreviewRegionId] = useState<string | null>(null);
+  const [selectError, setSelectError] = useState<string | null>(null);
 
   useEffect(() => {
     if (game.status === "PLAYING" || game.status === "GOLDEN_TIME") {
@@ -70,9 +71,14 @@ export default function LobbyPage() {
     setPreviewRegionId(regionId);
   };
 
-  const handleConfirmStart = () => {
+  const handleConfirmStart = async () => {
     if (!previewRegionId) return;
-    setStartingRegion(myTeam.id, previewRegionId);
+    const success = await setStartingRegion(myTeam.id, previewRegionId);
+    if (!success) {
+      setSelectError("다른 팀이 방금 먼저 선택했어요. 다른 지역을 골라주세요.");
+      setPreviewRegionId(null);
+      window.setTimeout(() => setSelectError(null), 3000);
+    }
   };
 
   const readyCount = game.teams.filter((t) => t.isReady).length;
@@ -107,6 +113,12 @@ export default function LobbyPage() {
           interactive={!myTeam.isReady}
         />
       </section>
+
+      {selectError && (
+        <div className="rounded-md bg-red-500/10 px-3 py-2 text-center text-sm text-red-400 ring-1 ring-red-500/30">
+          {selectError}
+        </div>
+      )}
 
       {previewRegion && !myTeam.startingRegionId && (
         <section className="flex items-center justify-between rounded-lg bg-neutral-900 px-4 py-3">

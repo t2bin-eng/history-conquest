@@ -48,7 +48,7 @@ interface GameStore {
   removeMember: (memberId: string) => Promise<void>;
   setTeamColor: (teamId: string, color: string) => Promise<void>;
   setTeamFlag: (teamId: string, flagImageUrl: string) => Promise<void>;
-  setStartingRegion: (teamId: string, regionId: string | null) => Promise<void>;
+  setStartingRegion: (teamId: string, regionId: string | null) => Promise<boolean>;
   setReady: (teamId: string, isReady: boolean) => Promise<void>;
   setTimeLimitSec: (timeLimitSec: number) => Promise<void>;
   startGame: () => Promise<void>;
@@ -165,8 +165,17 @@ export const useGameStore = create<GameStore>()(
       },
 
       setStartingRegion: async (teamId, regionId) => {
-        await api.updateTeam(teamId, { starting_region_key: regionId });
+        if (regionId === null) {
+          await api.updateTeam(teamId, { starting_region_key: null });
+          await get().refreshGame();
+          return true;
+        }
+
+        const { gameId } = get();
+        if (!gameId) return false;
+        const result = await api.selectStartingRegion(gameId, teamId, regionId);
         await get().refreshGame();
+        return result.success;
       },
 
       setReady: async (teamId, isReady) => {

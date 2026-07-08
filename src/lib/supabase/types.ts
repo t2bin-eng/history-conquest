@@ -79,6 +79,11 @@ export interface RpcQuestion {
   timeLimitSec: number;
 }
 
+export interface SelectStartingRegionResult {
+  success: boolean;
+  reason?: "already_taken";
+}
+
 export interface StartChallengeResult {
   success: boolean;
   reason?: "region_not_found" | "not_eligible" | "no_question_available";

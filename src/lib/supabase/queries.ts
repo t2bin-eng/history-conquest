@@ -4,6 +4,7 @@ import type {
   EventLogRow,
   GameRow,
   RegionRow,
+  SelectStartingRegionResult,
   StartChallengeResult,
   SubmitCaptureResult,
   TeamMemberRow,
@@ -107,6 +108,20 @@ export async function updateTeam(
 ): Promise<void> {
   const { error } = await supabase.from("teams").update(patch).eq("id", teamId);
   if (error) throw error;
+}
+
+export async function selectStartingRegion(
+  gameId: string,
+  teamId: string,
+  regionKey: string
+): Promise<SelectStartingRegionResult> {
+  const { data, error } = await supabase.rpc("select_starting_region", {
+    p_game_id: gameId,
+    p_team_id: teamId,
+    p_region_key: regionKey,
+  });
+  if (error) throw error;
+  return data as SelectStartingRegionResult;
 }
 
 export async function setTimeLimitSec(gameId: string, timeLimitSec: number): Promise<void> {
