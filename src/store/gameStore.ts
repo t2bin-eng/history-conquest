@@ -53,6 +53,8 @@ interface GameStore {
   setTimeLimitSec: (timeLimitSec: number) => void;
   startGame: () => void;
   endGame: () => void;
+  pauseGame: () => void;
+  resumeGame: () => void;
   startChallenge: (regionId: string, teamId: string) => boolean;
   submitChallengeAnswer: (selectedAnswer: string) => boolean;
   cancelChallenge: () => void;
@@ -64,6 +66,8 @@ const initialGame: Game = {
   timeLimitSec: 20 * 60,
   startedAt: null,
   endedAt: null,
+  isPaused: false,
+  pausedAt: null,
   comebackAssist: false,
   regions: generateMockRegions(),
   teams: [],
@@ -201,10 +205,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }));
   },
 
+  pauseGame: () => {
+    set((state) => {
+      if (state.game.status !== "PLAYING" || state.game.isPaused) return state;
+      return { game: { ...state.game, isPaused: true, pausedAt: new Date().toISOString() } };
+    });
+  },
+
+  resumeGame: () => {
+    set((state) => {
+      if (!state.game.isPaused || !state.game.pausedAt || !state.game.startedAt) return state;
+      const pausedMs = Date.now() - new Date(state.game.pausedAt).getTime();
+      const shiftedStartedAt = new Date(
+        new Date(state.game.startedAt).getTime() + pausedMs
+      ).toISOString();
+      return {
+        game: { ...state.game, isPaused: false, pausedAt: null, startedAt: shiftedStartedAt },
+      };
+    });
+  },
+
   startChallenge: (regionId, teamId) => {
     const { game } = get();
     const region = game.regions.find((r) => r.id === regionId);
-    if (!region || game.status !== "PLAYING") return false;
+    if (!region || game.status !== "PLAYING" || game.isPaused) return false;
     if (!canChallengeRegion(region, teamId)) return false;
 
     const question = drawQuestion(region.difficulty, regionId, teamId);

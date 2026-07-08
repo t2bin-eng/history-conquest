@@ -88,6 +88,8 @@ export interface Game {
   timeLimitSec: number;
   startedAt: string | null;
   endedAt: string | null;
+  isPaused: boolean;
+  pausedAt: string | null;
   comebackAssist: boolean;
   regions: Region[];
   teams: Team[];

@@ -11,6 +11,7 @@ import { MOCK_MAP_VIEWBOX } from "@/data/mockRegions";
 import { canChallengeRegion } from "@/lib/regionRules";
 import { eventToMessage } from "@/lib/eventMessage";
 import { formatMMSS } from "@/lib/time";
+import { useRemainingSeconds } from "@/hooks/useRemainingSeconds";
 
 export default function PlayPage() {
   const router = useRouter();
@@ -18,26 +19,19 @@ export default function PlayPage() {
     useGameStore();
   const myTeam = game.teams.find((t) => t.id === myTeamId) ?? null;
 
-  const [now, setNow] = useState(() => Date.now());
   const [toast, setToast] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ correct: boolean; regionName: string; points: number } | null>(
     null
   );
 
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const elapsedSec = game.startedAt ? Math.floor((now - new Date(game.startedAt).getTime()) / 1000) : 0;
-  const remainingSec = Math.max(0, game.timeLimitSec - elapsedSec);
+  const remainingSec = useRemainingSeconds(game);
   const allCaptured = game.regions.length > 0 && game.regions.every((r) => r.ownerTeamId !== null);
 
   useEffect(() => {
-    if (game.status === "PLAYING" && (remainingSec <= 0 || allCaptured)) {
+    if (game.status === "PLAYING" && !game.isPaused && (remainingSec <= 0 || allCaptured)) {
       endGame();
     }
-  }, [game.status, remainingSec, allCaptured, endGame]);
+  }, [game.status, game.isPaused, remainingSec, allCaptured, endGame]);
 
   useEffect(() => {
     if (game.status === "ENDED") {
@@ -114,6 +108,12 @@ export default function PlayPage() {
         </div>
         <div className="font-mono text-lg font-bold text-white">{formatMMSS(remainingSec)}</div>
       </header>
+
+      {game.isPaused && (
+        <div className="rounded-md bg-yellow-500/10 px-3 py-1.5 text-center text-xs font-semibold text-yellow-400 ring-1 ring-yellow-500/30">
+          교사가 게임을 일시정지했습니다. 잠시만 기다려주세요.
+        </div>
+      )}
 
       {latestNews && (
         <div className="overflow-hidden rounded-md bg-neutral-900 px-3 py-1.5 text-xs text-neutral-300">
