@@ -8,9 +8,28 @@ import { MOCK_MAP_VIEWBOX } from "@/data/mockRegions";
 import { difficultyLabel } from "@/lib/regionDisplay";
 
 export default function LobbyPage() {
-  const { game, myTeamId, setStartingRegion, setReady } = useGameStore();
+  const { game, gameId, isLoading, myTeamId, setStartingRegion, setReady } = useGameStore();
   const myTeam = game.teams.find((t) => t.id === myTeamId) ?? null;
   const [previewRegionId, setPreviewRegionId] = useState<string | null>(null);
+
+  if (!gameId) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-sm text-neutral-400">먼저 게임 코드를 입력해 참가해주세요.</p>
+        <Link href="/join" className="text-sm font-medium text-blue-400 hover:underline">
+          게임 코드 입력하러 가기
+        </Link>
+      </main>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <p className="text-sm text-neutral-500">불러오는 중...</p>
+      </main>
+    );
+  }
 
   if (!myTeam) {
     return (

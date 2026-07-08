@@ -3,7 +3,7 @@
 import { useGameStore } from "@/store/gameStore";
 
 export function TeacherWaitingRoom() {
-  const { game, setTimeLimitSec, startGame } = useGameStore();
+  const { game, gameCode, setTimeLimitSec, startGame } = useGameStore();
   const { teams } = game;
 
   const readyCount = teams.filter((t) => t.isReady).length;
@@ -19,6 +19,11 @@ export function TeacherWaitingRoom() {
           참가 팀 현황을 확인하고 제한시간을 설정한 뒤 퀴즈를 시작하세요.
         </p>
       </header>
+
+      <section className="flex flex-col items-center gap-1 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-4">
+        <p className="text-xs text-neutral-400">학생 참가 코드</p>
+        <p className="font-mono text-3xl font-bold tracking-widest text-white">{gameCode}</p>
+      </section>
 
       <section className="flex items-center gap-3 rounded-lg border border-neutral-800 px-4 py-3">
         <label className="flex items-center gap-2 text-sm font-medium text-neutral-300">

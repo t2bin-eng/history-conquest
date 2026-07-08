@@ -1,325 +1,254 @@
 import { create } from "zustand";
-import type { EventLog, EventType, Game, Question, Team, TeamMember } from "@/types/game";
-import { generateMockRegions } from "@/data/mockRegions";
-import { drawQuestion } from "@/data/mockQuestions";
-import {
-  applySurroundCaptures,
-  canChallengeRegion,
-  reconquestCooldownUntil,
-  syncTeamOwnedRegions,
-} from "@/lib/regionRules";
-
-function createId(prefix: string) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function logEvent(
-  type: EventType,
-  regionId: string,
-  teamId: string,
-  payload: Record<string, unknown> = {}
-): EventLog {
-  return {
-    id: createId("event"),
-    timestamp: new Date().toISOString(),
-    type,
-    regionId,
-    teamId,
-    actorMemberName: null,
-    payload,
-  };
-}
+import { persist } from "zustand/middleware";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import type { Game, Team } from "@/types/game";
+import type { RpcQuestion } from "@/lib/supabase/types";
+import * as api from "@/lib/supabase/queries";
+import { subscribeToGame, unsubscribeFromGame } from "@/lib/supabase/realtime";
 
 export interface ActiveChallenge {
   regionId: string;
   teamId: string;
-  question: Question;
+  question: RpcQuestion;
 }
 
-interface GameStore {
-  game: Game;
-  /** 현재 브라우저 세션이 조작 중인 팀 (학생 화면용) */
-  myTeamId: string | null;
-  activeChallenge: ActiveChallenge | null;
-
-  registerTeam: (name: string, color: string) => string;
-  setMyTeam: (teamId: string) => void;
-  addMember: (teamId: string, name: string) => void;
-  removeMember: (teamId: string, memberId: string) => void;
-  setTeamColor: (teamId: string, color: string) => void;
-  setTeamFlag: (teamId: string, flagImageUrl: string) => void;
-  setStartingRegion: (teamId: string, regionId: string | null) => void;
-  setReady: (teamId: string, isReady: boolean) => void;
-  setTimeLimitSec: (timeLimitSec: number) => void;
-  startGame: () => void;
-  endGame: () => void;
-  pauseGame: () => void;
-  resumeGame: () => void;
-  startChallenge: (regionId: string, teamId: string) => boolean;
-  submitChallengeAnswer: (selectedAnswer: string) => boolean;
-  cancelChallenge: () => void;
-}
-
-const initialGame: Game = {
-  id: createId("game"),
+const EMPTY_GAME: Game = {
+  id: "",
   status: "WAITING",
-  timeLimitSec: 20 * 60,
+  timeLimitSec: 1200,
   startedAt: null,
   endedAt: null,
   isPaused: false,
   pausedAt: null,
   comebackAssist: false,
-  regions: generateMockRegions(),
+  regions: [],
   teams: [],
   eventLogs: [],
 };
 
-export const useGameStore = create<GameStore>((set, get) => ({
-  game: initialGame,
-  myTeamId: null,
-  activeChallenge: null,
+interface GameStore {
+  game: Game;
+  gameId: string | null;
+  gameCode: string | null;
+  myTeamId: string | null;
+  activeChallenge: ActiveChallenge | null;
+  isConnected: boolean;
+  isLoading: boolean;
+  _channel: RealtimeChannel | null;
 
-  registerTeam: (name, color) => {
-    const id = createId("team");
-    const newTeam: Team = {
-      id,
-      name,
-      color,
-      flagImageUrl: null,
-      members: [],
-      score: 0,
-      ownedRegionIds: [],
-      cards: [],
-      comboStreak: 0,
-      isReady: false,
-      startingRegionId: null,
-    };
-    set((state) => ({
-      game: { ...state.game, teams: [...state.game.teams, newTeam] },
-      myTeamId: id,
-    }));
-    return id;
-  },
+  createNewGame: (timeLimitSec: number) => Promise<string>;
+  joinGameByCode: (code: string) => Promise<boolean>;
+  reconnect: () => Promise<void>;
+  leaveGame: () => void;
+  refreshGame: () => Promise<void>;
 
-  setMyTeam: (teamId) => set({ myTeamId: teamId }),
+  setMyTeam: (teamId: string) => void;
+  registerTeam: (name: string, color: string) => Promise<string>;
+  addMember: (teamId: string, name: string) => Promise<void>;
+  removeMember: (memberId: string) => Promise<void>;
+  setTeamColor: (teamId: string, color: string) => Promise<void>;
+  setTeamFlag: (teamId: string, flagImageUrl: string) => Promise<void>;
+  setStartingRegion: (teamId: string, regionId: string | null) => Promise<void>;
+  setReady: (teamId: string, isReady: boolean) => Promise<void>;
+  setTimeLimitSec: (timeLimitSec: number) => Promise<void>;
+  startGame: () => Promise<void>;
+  endGame: () => Promise<void>;
+  pauseGame: () => Promise<void>;
+  resumeGame: () => Promise<void>;
 
-  addMember: (teamId, name) => {
-    const member: TeamMember = { id: createId("member"), name };
-    set((state) => ({
-      game: {
-        ...state.game,
-        teams: state.game.teams.map((t) =>
-          t.id === teamId ? { ...t, members: [...t.members, member] } : t
-        ),
-      },
-    }));
-  },
+  startChallenge: (regionId: string, teamId: string) => Promise<boolean>;
+  submitChallengeAnswer: (selectedAnswer: string) => Promise<boolean>;
+  cancelChallenge: () => void;
+}
 
-  removeMember: (teamId, memberId) => {
-    set((state) => ({
-      game: {
-        ...state.game,
-        teams: state.game.teams.map((t) =>
-          t.id === teamId
-            ? { ...t, members: t.members.filter((m) => m.id !== memberId) }
-            : t
-        ),
-      },
-    }));
-  },
+async function connectToGame(
+  gameId: string,
+  set: (partial: Partial<GameStore>) => void,
+  get: () => GameStore
+) {
+  const prevChannel = get()._channel;
+  if (prevChannel) unsubscribeFromGame(prevChannel);
 
-  setTeamColor: (teamId, color) => {
-    set((state) => ({
-      game: {
-        ...state.game,
-        teams: state.game.teams.map((t) =>
-          t.id === teamId ? { ...t, color } : t
-        ),
-      },
-    }));
-  },
+  set({ isLoading: true });
+  const game = await api.fetchFullGame(gameId);
+  const channel = subscribeToGame(gameId, () => {
+    get().refreshGame();
+  });
+  set({ game, isConnected: true, isLoading: false, _channel: channel });
+}
 
-  setTeamFlag: (teamId, flagImageUrl) => {
-    set((state) => ({
-      game: {
-        ...state.game,
-        teams: state.game.teams.map((t) =>
-          t.id === teamId ? { ...t, flagImageUrl } : t
-        ),
-      },
-    }));
-  },
-
-  setStartingRegion: (teamId, regionId) => {
-    set((state) => ({
-      game: {
-        ...state.game,
-        teams: state.game.teams.map((t) =>
-          t.id === teamId ? { ...t, startingRegionId: regionId } : t
-        ),
-      },
-    }));
-  },
-
-  setReady: (teamId, isReady) => {
-    set((state) => ({
-      game: {
-        ...state.game,
-        teams: state.game.teams.map((t) =>
-          t.id === teamId ? { ...t, isReady } : t
-        ),
-      },
-    }));
-  },
-
-  setTimeLimitSec: (timeLimitSec) => {
-    set((state) => ({ game: { ...state.game, timeLimitSec } }));
-  },
-
-  startGame: () => {
-    set((state) => {
-      const cooldownUntil = reconquestCooldownUntil();
-      const regions = state.game.regions.map((r) => {
-        const owner = state.game.teams.find((t) => t.startingRegionId === r.id);
-        return owner
-          ? { ...r, ownerTeamId: owner.id, status: "OWNED" as const, cooldownUntil }
-          : r;
-      });
-      const teams = syncTeamOwnedRegions(state.game.teams, regions);
-      return {
-        game: {
-          ...state.game,
-          status: "PLAYING",
-          startedAt: new Date().toISOString(),
-          teams,
-          regions,
-        },
-      };
-    });
-  },
-
-  endGame: () => {
-    set((state) => ({
-      game: { ...state.game, status: "ENDED", endedAt: new Date().toISOString() },
+export const useGameStore = create<GameStore>()(
+  persist(
+    (set, get) => ({
+      game: EMPTY_GAME,
+      gameId: null,
+      gameCode: null,
+      myTeamId: null,
       activeChallenge: null,
-    }));
-  },
+      isConnected: false,
+      isLoading: false,
+      _channel: null,
 
-  pauseGame: () => {
-    set((state) => {
-      if (state.game.status !== "PLAYING" || state.game.isPaused) return state;
-      return { game: { ...state.game, isPaused: true, pausedAt: new Date().toISOString() } };
-    });
-  },
-
-  resumeGame: () => {
-    set((state) => {
-      if (!state.game.isPaused || !state.game.pausedAt || !state.game.startedAt) return state;
-      const pausedMs = Date.now() - new Date(state.game.pausedAt).getTime();
-      const shiftedStartedAt = new Date(
-        new Date(state.game.startedAt).getTime() + pausedMs
-      ).toISOString();
-      return {
-        game: { ...state.game, isPaused: false, pausedAt: null, startedAt: shiftedStartedAt },
-      };
-    });
-  },
-
-  startChallenge: (regionId, teamId) => {
-    const { game } = get();
-    const region = game.regions.find((r) => r.id === regionId);
-    if (!region || game.status !== "PLAYING" || game.isPaused) return false;
-    if (!canChallengeRegion(region, teamId)) return false;
-
-    const question = drawQuestion(region.difficulty, regionId, teamId);
-    set({ activeChallenge: { regionId, teamId, question } });
-    return true;
-  },
-
-  submitChallengeAnswer: (selectedAnswer) => {
-    const { game, activeChallenge } = get();
-    if (!activeChallenge) return false;
-
-    const region = game.regions.find((r) => r.id === activeChallenge.regionId);
-    if (!region) {
-      set({ activeChallenge: null });
-      return false;
-    }
-
-    const correct = selectedAnswer === activeChallenge.question.answer;
-
-    if (!correct) {
-      const regions = game.regions.map((r) =>
-        r.id === region.id
-          ? { ...r, failedTeamIds: [...r.failedTeamIds, activeChallenge.teamId] }
-          : r
-      );
-      const teams = game.teams.map((t) =>
-        t.id === activeChallenge.teamId ? { ...t, comboStreak: 0 } : t
-      );
-      set({
-        game: {
-          ...game,
-          regions,
-          teams,
-          eventLogs: [
-            ...game.eventLogs,
-            logEvent("WRONG_ANSWER", region.id, activeChallenge.teamId),
-          ],
-        },
-        activeChallenge: null,
-      });
-      return false;
-    }
-
-    const wasOwnedByOther = region.status === "OWNED" && !!region.ownerTeamId;
-
-    let regions = game.regions.map((r) =>
-      r.id === region.id
-        ? {
-            ...r,
-            ownerTeamId: activeChallenge.teamId,
-            status: "OWNED" as const,
-            cooldownUntil: reconquestCooldownUntil(),
-            failedTeamIds: [],
-          }
-        : r
-    );
-
-    const surroundResult = applySurroundCaptures(regions);
-    regions = surroundResult.regions;
-
-    let teams = syncTeamOwnedRegions(game.teams, regions);
-    teams = teams.map((t) =>
-      t.id === activeChallenge.teamId
-        ? { ...t, score: t.score + region.points, comboStreak: t.comboStreak + 1 }
-        : t
-    );
-
-    const captureEvent = logEvent(
-      wasOwnedByOther ? "RECONQUEST" : "CAPTURE",
-      region.id,
-      activeChallenge.teamId,
-      { points: region.points }
-    );
-    const surroundEvents = surroundResult.captures.map((c) =>
-      logEvent("SURROUND", c.regionId, c.teamId)
-    );
-
-    set({
-      game: {
-        ...game,
-        regions,
-        teams,
-        eventLogs: [...game.eventLogs, captureEvent, ...surroundEvents],
+      createNewGame: async (timeLimitSec) => {
+        const row = await api.createGame(timeLimitSec);
+        set({ gameId: row.id, gameCode: row.code });
+        await connectToGame(row.id, set, get);
+        return row.code;
       },
-      activeChallenge: null,
-    });
-    return true;
-  },
 
-  cancelChallenge: () => set({ activeChallenge: null }),
-}));
+      joinGameByCode: async (code) => {
+        const row = await api.getGameByCode(code);
+        if (!row) return false;
+        set({ gameId: row.id, gameCode: row.code });
+        await connectToGame(row.id, set, get);
+        return true;
+      },
+
+      reconnect: async () => {
+        const { gameId, isConnected } = get();
+        if (!gameId || isConnected) return;
+        await connectToGame(gameId, set, get);
+      },
+
+      leaveGame: () => {
+        const channel = get()._channel;
+        if (channel) unsubscribeFromGame(channel);
+        set({
+          game: EMPTY_GAME,
+          gameId: null,
+          gameCode: null,
+          myTeamId: null,
+          activeChallenge: null,
+          isConnected: false,
+          _channel: null,
+        });
+      },
+
+      refreshGame: async () => {
+        const { gameId } = get();
+        if (!gameId) return;
+        const game = await api.fetchFullGame(gameId);
+        set({ game });
+      },
+
+      setMyTeam: (teamId) => set({ myTeamId: teamId }),
+
+      registerTeam: async (name, color) => {
+        const { gameId } = get();
+        if (!gameId) throw new Error("게임에 연결되어 있지 않습니다.");
+        const teamId = await api.registerTeam(gameId, name, color);
+        set({ myTeamId: teamId });
+        await get().refreshGame();
+        return teamId;
+      },
+
+      addMember: async (teamId, name) => {
+        const { gameId } = get();
+        if (!gameId) return;
+        await api.addMember(gameId, teamId, name);
+        await get().refreshGame();
+      },
+
+      removeMember: async (memberId) => {
+        await api.removeMember(memberId);
+        await get().refreshGame();
+      },
+
+      setTeamColor: async (teamId, color) => {
+        await api.updateTeam(teamId, { color });
+        await get().refreshGame();
+      },
+
+      setTeamFlag: async (teamId, flagImageUrl) => {
+        await api.updateTeam(teamId, { flag_image_url: flagImageUrl });
+        await get().refreshGame();
+      },
+
+      setStartingRegion: async (teamId, regionId) => {
+        await api.updateTeam(teamId, { starting_region_key: regionId });
+        await get().refreshGame();
+      },
+
+      setReady: async (teamId, isReady) => {
+        await api.updateTeam(teamId, { is_ready: isReady });
+        await get().refreshGame();
+      },
+
+      setTimeLimitSec: async (timeLimitSec) => {
+        const { gameId } = get();
+        if (!gameId) return;
+        await api.setTimeLimitSec(gameId, timeLimitSec);
+        await get().refreshGame();
+      },
+
+      startGame: async () => {
+        const { gameId } = get();
+        if (!gameId) return;
+        await api.startGame(gameId);
+        await get().refreshGame();
+      },
+
+      endGame: async () => {
+        const { gameId } = get();
+        if (!gameId) return;
+        await api.endGame(gameId);
+        set({ activeChallenge: null });
+        await get().refreshGame();
+      },
+
+      pauseGame: async () => {
+        const { gameId } = get();
+        if (!gameId) return;
+        await api.pauseGame(gameId);
+        await get().refreshGame();
+      },
+
+      resumeGame: async () => {
+        const { gameId } = get();
+        if (!gameId) return;
+        await api.resumeGame(gameId);
+        await get().refreshGame();
+      },
+
+      startChallenge: async (regionId, teamId) => {
+        const { gameId } = get();
+        if (!gameId) return false;
+        const result = await api.startChallenge(gameId, regionId, teamId);
+        if (!result.success || !result.question) return false;
+        set({ activeChallenge: { regionId, teamId, question: result.question } });
+        return true;
+      },
+
+      submitChallengeAnswer: async (selectedAnswer) => {
+        const { gameId, activeChallenge } = get();
+        if (!gameId || !activeChallenge) return false;
+        const result = await api.submitCapture(
+          gameId,
+          activeChallenge.regionId,
+          activeChallenge.teamId,
+          activeChallenge.question.id,
+          selectedAnswer
+        );
+        set({ activeChallenge: null });
+        await get().refreshGame();
+        return result.correct ?? false;
+      },
+
+      cancelChallenge: () => set({ activeChallenge: null }),
+    }),
+    {
+      name: "history-conquest-session",
+      partialize: (state) => ({
+        gameId: state.gameId,
+        gameCode: state.gameCode,
+        myTeamId: state.myTeamId,
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?.reconnect();
+      },
+    }
+  )
+);
 
 export function isColorTaken(teams: Team[], color: string, excludeTeamId?: string) {
   return teams.some((t) => t.color === color && t.id !== excludeTeamId);

@@ -15,8 +15,16 @@ import { useRemainingSeconds } from "@/hooks/useRemainingSeconds";
 
 export default function PlayPage() {
   const router = useRouter();
-  const { game, myTeamId, activeChallenge, startChallenge, submitChallengeAnswer, endGame } =
-    useGameStore();
+  const {
+    game,
+    gameId,
+    isLoading,
+    myTeamId,
+    activeChallenge,
+    startChallenge,
+    submitChallengeAnswer,
+    endGame,
+  } = useGameStore();
   const myTeam = game.teams.find((t) => t.id === myTeamId) ?? null;
 
   const [toast, setToast] = useState<string | null>(null);
@@ -38,6 +46,25 @@ export default function PlayPage() {
       router.push("/results");
     }
   }, [game.status, router]);
+
+  if (!gameId) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-sm text-neutral-400">먼저 게임 코드를 입력해 참가해주세요.</p>
+        <Link href="/join" className="text-sm font-medium text-blue-400 hover:underline">
+          게임 코드 입력하러 가기
+        </Link>
+      </main>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <p className="text-sm text-neutral-500">불러오는 중...</p>
+      </main>
+    );
+  }
 
   if (!myTeam) {
     return (
@@ -69,26 +96,26 @@ export default function PlayPage() {
     .reverse()
     .find((e) => e.type === "CAPTURE" || e.type === "RECONQUEST" || e.type === "SURROUND");
 
-  const handleRegionClick = (regionId: string) => {
-    const started = startChallenge(regionId, myTeam.id);
+  const handleRegionClick = async (regionId: string) => {
+    const started = await startChallenge(regionId, myTeam.id);
     if (!started) {
       setToast("지금은 도전할 수 없는 지역입니다.");
       window.setTimeout(() => setToast(null), 2000);
     }
   };
 
-  const handleAnswer = (choice: string) => {
+  const handleAnswer = async (choice: string) => {
     if (!activeChallenge) return;
     const region = game.regions.find((r) => r.id === activeChallenge.regionId);
-    const correct = submitChallengeAnswer(choice);
+    const correct = await submitChallengeAnswer(choice);
     setFeedback({ correct, regionName: region?.name ?? "", points: region?.points ?? 0 });
     window.setTimeout(() => setFeedback(null), 1800);
   };
 
-  const handleTimeUp = () => {
+  const handleTimeUp = async () => {
     if (!activeChallenge) return;
     const region = game.regions.find((r) => r.id === activeChallenge.regionId);
-    submitChallengeAnswer("__TIMEOUT__");
+    await submitChallengeAnswer("__TIMEOUT__");
     setFeedback({ correct: false, regionName: region?.name ?? "", points: 0 });
     window.setTimeout(() => setFeedback(null), 1800);
   };

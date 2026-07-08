@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const ROUTES = [
   { href: "/", label: "홈" },
+  { href: "/join", label: "게임 코드 입력" },
   { href: "/register", label: "팀 등록" },
   { href: "/lobby", label: "학생 대기실" },
   { href: "/teacher", label: "교사 대시보드" },
@@ -9,7 +10,7 @@ const ROUTES = [
   { href: "/results", label: "결과" },
 ];
 
-/** 개발 중 화면 간 빠른 이동용. 백엔드(Supabase) 연동 후 게임 코드 기반 라우팅으로 대체 예정 */
+/** 개발 중 화면 간 빠른 이동용. */
 export function DevNav() {
   return (
     <nav className="flex gap-3 border-b border-neutral-800 bg-neutral-950 px-4 py-2 text-xs text-neutral-400">

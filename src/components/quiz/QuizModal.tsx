@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Question } from "@/types/game";
+import type { RpcQuestion } from "@/lib/supabase/types";
 
 interface QuizModalProps {
-  question: Question;
+  question: RpcQuestion;
   regionName: string;
   onAnswer: (choice: string) => void;
   onTimeUp: () => void;

@@ -7,12 +7,20 @@ export default function Home() {
       <p className="max-w-sm text-sm text-neutral-400">
         지도를 점령해가는 실시간 팀 대항 역사 퀴즈 게임
       </p>
-      <Link
-        href="/register"
-        className="rounded-md bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
-      >
-        팀 등록하고 시작하기
-      </Link>
+      <div className="flex gap-3">
+        <Link
+          href="/join"
+          className="rounded-md bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
+        >
+          학생으로 참가하기
+        </Link>
+        <Link
+          href="/teacher"
+          className="rounded-md bg-neutral-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700"
+        >
+          교사 대시보드
+        </Link>
+      </div>
     </main>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useGameStore, isColorTaken } from "@/store/gameStore";
 import { TEAM_COLOR_PRESETS } from "@/data/teamPalette";
 import { ColorPicker } from "@/components/team/ColorPicker";
@@ -16,8 +17,17 @@ function firstAvailableColor(teams: Team[]) {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { game, myTeamId, registerTeam, addMember, removeMember, setTeamColor, setTeamFlag } =
-    useGameStore();
+  const {
+    game,
+    gameId,
+    gameCode,
+    myTeamId,
+    registerTeam,
+    addMember,
+    removeMember,
+    setTeamColor,
+    setTeamFlag,
+  } = useGameStore();
 
   const [teamName, setTeamName] = useState("");
   const myTeam = game.teams.find((t) => t.id === myTeamId) ?? null;
@@ -31,11 +41,23 @@ export default function RegisterPage() {
   const canProceed =
     !!myTeam && myTeam.members.length > 0 && !isColorTaken(game.teams, myTeam.color, myTeam.id);
 
+  if (!gameId) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-sm text-neutral-400">먼저 게임 코드를 입력해 참가해주세요.</p>
+        <Link href="/join" className="text-sm font-medium text-blue-400 hover:underline">
+          게임 코드 입력하러 가기
+        </Link>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-8 px-6 py-10">
       <header className="flex flex-col gap-1">
         <h1 className="text-xl font-bold text-white">팀 등록</h1>
         <p className="text-sm text-neutral-400">
+          게임 코드 <span className="font-mono font-semibold text-neutral-300">{gameCode}</span> ·
           팀 이름과 팀원, 색상, 깃발을 정하고 대기실로 입장하세요.
         </p>
       </header>
@@ -80,7 +102,7 @@ export default function RegisterPage() {
           <MemberList
             members={myTeam.members}
             onAdd={(name) => addMember(myTeam.id, name)}
-            onRemove={(memberId) => removeMember(myTeam.id, memberId)}
+            onRemove={(memberId) => removeMember(memberId)}
           />
 
           <ColorPicker
