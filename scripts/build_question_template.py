@@ -27,9 +27,9 @@ lines = [
     ("   - 카테고리: 대단원/시대 구분 (예: 선사·고대, 삼국시대, 고려, 조선, 근현대)", False, 11),
     ("   - 난이도: 하 / 중 / 고 중 하나 (드롭다운으로 선택)", False, 11),
     ("     · 하 = 변경(외곽) 지역용 쉬운 문제, 중 = 거점 지역용, 고 = 요충지용 어려운 문제", False, 11),
-    ("   - 문제: 문제 본문 텍스트", False, 11),
-    ("   - 선택지1~4: 객관식 보기 4개 (반드시 4개 모두 채워주세요)", False, 11),
-    ("   - 정답번호: 정답인 선택지 번호 1~4 중 하나 (드롭다운으로 선택)", False, 11),
+    ("   - 문제: 문제 본문 텍스트 (자료 지문이 있으면 문제 앞에 함께 적어주세요)", False, 11),
+    ("   - 선택지1~5: 객관식 보기 5개 (반드시 5개 모두 채워주세요)", False, 11),
+    ("   - 정답번호: 정답인 선택지 번호 1~5 중 하나 (드롭다운으로 선택)", False, 11),
     ("   - 제한시간(초): 비워두면 난이도별 기본값 적용(하 15초 / 중 18초 / 고 20초)", False, 11),
     ("", False, 11),
     ("3. 다 채운 뒤 교사 대시보드의 '문제 은행 관리'에서 이 파일을 업로드하면 됩니다.", False, 11),
@@ -45,8 +45,12 @@ for text, bold, size in lines:
 
 # --- 문제_양식 시트 ---
 sheet = wb.create_sheet("문제_양식")
-headers = ["카테고리", "난이도(하/중/고)", "문제", "선택지1", "선택지2", "선택지3", "선택지4", "정답번호(1~4)", "제한시간(초, 선택)"]
-widths = [14, 16, 45, 22, 22, 22, 22, 14, 16]
+headers = [
+    "카테고리", "난이도(하/중/고)", "문제",
+    "선택지1", "선택지2", "선택지3", "선택지4", "선택지5",
+    "정답번호(1~5)", "제한시간(초, 선택)",
+]
+widths = [14, 16, 45, 20, 20, 20, 20, 20, 14, 16]
 
 for col, (title, width) in enumerate(zip(headers, widths), start=1):
     cell = sheet.cell(row=1, column=col, value=title)
@@ -60,8 +64,8 @@ sheet.freeze_panes = "A2"
 sheet.row_dimensions[1].height = 28
 
 example_rows = [
-    ["고려", "고", "고려 시대에 제작된 세계 최초의 금속활자본은?", "직지심체요절", "팔만대장경", "삼국유사", "동의보감", 1, ""],
-    ["근현대", "중", "1920년 김좌진 장군이 일본군을 크게 물리친 전투는?", "청산리 전투", "봉오동 전투", "홍경성 전투", "간도 참변", 1, ""],
+    ["고려", "고", "고려 시대에 제작된 세계 최초의 금속활자본은?", "직지심체요절", "팔만대장경", "삼국유사", "동의보감", "조선왕조실록", 1, ""],
+    ["근현대", "중", "1920년 김좌진 장군이 일본군을 크게 물리친 전투는?", "청산리 전투", "봉오동 전투", "홍경성 전투", "간도 참변", "훈춘 사건", 1, ""],
 ]
 
 for r, row_data in enumerate(example_rows, start=2):
@@ -89,11 +93,11 @@ difficulty_dv.errorTitle = "잘못된 난이도"
 sheet.add_data_validation(difficulty_dv)
 difficulty_dv.add(f"B2:B{last_row}")
 
-answer_dv = DataValidation(type="list", formula1='"1,2,3,4"', allow_blank=True, showDropDown=False)
-answer_dv.error = "1, 2, 3, 4 중 하나를 선택하세요."
+answer_dv = DataValidation(type="list", formula1='"1,2,3,4,5"', allow_blank=True, showDropDown=False)
+answer_dv.error = "1, 2, 3, 4, 5 중 하나를 선택하세요."
 answer_dv.errorTitle = "잘못된 정답번호"
 sheet.add_data_validation(answer_dv)
-answer_dv.add(f"H2:H{last_row}")
+answer_dv.add(f"I2:I{last_row}")
 
 wb.save(OUT_PATH)
 print(f"saved: {OUT_PATH}")

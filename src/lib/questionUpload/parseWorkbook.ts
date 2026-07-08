@@ -45,9 +45,9 @@ export async function parseQuestionWorkbook(buffer: ArrayBuffer): Promise<ParseR
     const category = cellText(row.getCell(1).value);
     const difficultyRaw = cellText(row.getCell(2).value);
     const text = cellText(row.getCell(3).value);
-    const choices = [4, 5, 6, 7].map((c) => cellText(row.getCell(c).value));
-    const answerIndexRaw = cellText(row.getCell(8).value);
-    const timeLimitRaw = cellText(row.getCell(9).value);
+    const choices = [4, 5, 6, 7, 8].map((c) => cellText(row.getCell(c).value));
+    const answerIndexRaw = cellText(row.getCell(9).value);
+    const timeLimitRaw = cellText(row.getCell(10).value);
 
     const isEmptyRow = !category && !difficultyRaw && !text && choices.every((c) => !c);
     if (isEmptyRow) return;
@@ -57,10 +57,10 @@ export async function parseQuestionWorkbook(buffer: ArrayBuffer): Promise<ParseR
     const difficulty = DIFFICULTY_MAP[difficultyRaw];
     if (!difficulty) rowErrors.push(`난이도 값이 올바르지 않음(${difficultyRaw || "빈칸"})`);
     if (!text) rowErrors.push("문제 누락");
-    if (choices.some((c) => !c)) rowErrors.push("선택지 4개를 모두 채워야 함");
+    if (choices.some((c) => !c)) rowErrors.push("선택지 5개를 모두 채워야 함");
 
     const answerIndex = Number(answerIndexRaw);
-    if (!Number.isInteger(answerIndex) || answerIndex < 1 || answerIndex > 4) {
+    if (!Number.isInteger(answerIndex) || answerIndex < 1 || answerIndex > 5) {
       rowErrors.push(`정답번호가 올바르지 않음(${answerIndexRaw || "빈칸"})`);
     }
 
