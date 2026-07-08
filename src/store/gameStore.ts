@@ -19,6 +19,8 @@ interface GameStore {
   setTeamFlag: (teamId: string, flagImageUrl: string) => void;
   setStartingRegion: (teamId: string, regionId: string | null) => void;
   setReady: (teamId: string, isReady: boolean) => void;
+  setTimeLimitSec: (timeLimitSec: number) => void;
+  startGame: () => void;
 }
 
 const initialGame: Game = {
@@ -33,7 +35,7 @@ const initialGame: Game = {
   eventLogs: [],
 };
 
-export const useGameStore = create<GameStore>((set, get) => ({
+export const useGameStore = create<GameStore>((set) => ({
   game: initialGame,
   myTeamId: null,
 
@@ -128,6 +130,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ),
       },
     }));
+  },
+
+  setTimeLimitSec: (timeLimitSec) => {
+    set((state) => ({ game: { ...state.game, timeLimitSec } }));
+  },
+
+  startGame: () => {
+    set((state) => {
+      const teams = state.game.teams.map((t) =>
+        t.startingRegionId ? { ...t, ownedRegionIds: [t.startingRegionId] } : t
+      );
+      const regions = state.game.regions.map((r) => {
+        const owner = teams.find((t) => t.startingRegionId === r.id);
+        return owner
+          ? { ...r, ownerTeamId: owner.id, status: "OWNED" as const }
+          : r;
+      });
+      return {
+        game: {
+          ...state.game,
+          status: "PLAYING",
+          startedAt: new Date().toISOString(),
+          teams,
+          regions,
+        },
+      };
+    });
   },
 }));
 
