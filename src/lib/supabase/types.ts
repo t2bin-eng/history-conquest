@@ -96,3 +96,22 @@ export interface SubmitCaptureResult {
   correct?: boolean;
   reconquest?: boolean;
 }
+
+export interface UploadQuestionInput {
+  category: string;
+  difficulty: "LOW" | "MID" | "HIGH";
+  text: string;
+  choices: string[];
+  answer: string;
+  time_limit_sec?: number;
+}
+
+export interface BulkInsertQuestionsResult {
+  success: boolean;
+  inserted: number;
+}
+
+export interface QuestionBankSummary {
+  total: number;
+  byDifficulty: Partial<Record<"LOW" | "MID" | "HIGH", number>>;
+}

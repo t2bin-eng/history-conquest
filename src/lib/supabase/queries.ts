@@ -1,14 +1,17 @@
 import { supabase } from "./client";
 import { mapEventLogRow, mapRegionRow, mapTeamRow } from "./mappers";
 import type {
+  BulkInsertQuestionsResult,
   EventLogRow,
   GameRow,
+  QuestionBankSummary,
   RegionRow,
   SelectStartingRegionResult,
   StartChallengeResult,
   SubmitCaptureResult,
   TeamMemberRow,
   TeamRow,
+  UploadQuestionInput,
 } from "./types";
 import type { Game } from "@/types/game";
 
@@ -182,4 +185,22 @@ export async function submitCapture(
   });
   if (error) throw error;
   return data as SubmitCaptureResult;
+}
+
+export async function bulkInsertQuestions(
+  questions: UploadQuestionInput[],
+  replaceExisting: boolean
+): Promise<BulkInsertQuestionsResult> {
+  const { data, error } = await supabase.rpc("bulk_insert_questions", {
+    p_questions: questions,
+    p_replace_existing: replaceExisting,
+  });
+  if (error) throw error;
+  return data as BulkInsertQuestionsResult;
+}
+
+export async function getQuestionBankSummary(): Promise<QuestionBankSummary> {
+  const { data, error } = await supabase.rpc("get_question_bank_summary");
+  if (error) throw error;
+  return data as QuestionBankSummary;
 }
