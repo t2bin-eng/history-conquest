@@ -34,7 +34,7 @@ interface GameStore {
   activeChallenge: ActiveChallenge | null;
   isConnected: boolean;
   isLoading: boolean;
-  _channel: RealtimeChannel | null;
+  _channel: RealtimeChannel[] | null;
 
   createNewGame: (timeLimitSec: number) => Promise<string>;
   joinGameByCode: (code: string) => Promise<boolean>;
