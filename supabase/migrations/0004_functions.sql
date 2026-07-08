@@ -118,7 +118,7 @@ begin
       select
         bool_and(n.owner_team_id is not null),
         count(distinct n.owner_team_id),
-        min(n.owner_team_id)
+        (array_agg(distinct n.owner_team_id))[1]
       into v_all_owned, v_distinct_count, v_distinct_owner
       from regions n
       where n.game_id = p_game_id and n.key = any(r.adjacent_keys);
