@@ -6,6 +6,7 @@ import { parseQuestionWorkbook, type ParseRowError } from "@/lib/questionUpload/
 import { bulkInsertQuestions, getQuestionBankSummary } from "@/lib/supabase/queries";
 import type { QuestionBankSummary, UploadQuestionInput } from "@/lib/supabase/types";
 import { difficultyLabel } from "@/lib/regionDisplay";
+import { stripQuestionHtmlForPreview } from "@/lib/sanitizeQuestionHtml";
 
 export default function QuestionBankPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,7 +133,7 @@ export default function QuestionBankPage() {
               <ul className="max-h-40 overflow-y-auto rounded-md bg-neutral-900 p-2 text-xs text-neutral-400">
                 {parsed.valid.slice(0, 5).map((q, i) => (
                   <li key={i}>
-                    [{difficultyLabel(q.difficulty)}] {q.text}
+                    [{difficultyLabel(q.difficulty)}] {stripQuestionHtmlForPreview(q.text)}
                   </li>
                 ))}
                 {parsed.valid.length > 5 && <li>... 외 {parsed.valid.length - 5}개</li>}

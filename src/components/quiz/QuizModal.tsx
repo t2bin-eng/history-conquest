@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { RpcQuestion } from "@/lib/supabase/types";
+import { sanitizeQuestionHtml } from "@/lib/sanitizeQuestionHtml";
 
 interface QuizModalProps {
   question: RpcQuestion;
@@ -37,6 +38,10 @@ export function QuizModal({ question, regionName, onAnswer, onTimeUp }: QuizModa
 
   const progress = timeLeft / question.timeLimitSec;
   const urgent = timeLeft <= 5 && timeLeft > 0;
+  // 문제 은행에 HTML(자료 박스 등)로 업로드된 문제와, 예전처럼 순수 텍스트로
+  // 업로드된 문제를 모두 같은 방식으로 안전하게 렌더링한다 — 순수 텍스트는
+  // 정제해도 내용이 그대로 유지되므로 분기 없이 하나로 처리 가능하다.
+  const sanitizedText = useMemo(() => sanitizeQuestionHtml(question.text), [question.text]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
@@ -52,7 +57,10 @@ export function QuizModal({ question, regionName, onAnswer, onTimeUp }: QuizModa
           <TimerGauge progress={progress} timeLeft={timeLeft} urgent={urgent} />
         </div>
 
-        <p className="mb-5 text-base font-semibold leading-snug text-white">{question.text}</p>
+        <div
+          className="mb-5 rounded-lg bg-white p-4 text-sm font-medium leading-relaxed text-neutral-900 [&_*]:max-w-full"
+          dangerouslySetInnerHTML={{ __html: sanitizedText }}
+        />
 
         <div className="grid grid-cols-1 gap-2">
           {question.choices.map((choice) => (
