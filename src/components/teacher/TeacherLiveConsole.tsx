@@ -96,7 +96,7 @@ export function TeacherLiveConsole() {
             teams={game.teams}
             viewBoxWidth={MOCK_MAP_VIEWBOX.width}
             viewBoxHeight={MOCK_MAP_VIEWBOX.height}
-            interactive={false}
+            interactive
           />
         </section>
 

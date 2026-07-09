@@ -21,7 +21,7 @@ interface RegionMapProps {
 }
 
 const MIN_ZOOM = 1;
-const MAX_ZOOM = 6;
+const MAX_ZOOM = 10;
 
 export function RegionMap({
   regions,
@@ -187,8 +187,8 @@ export function RegionMap({
                     y={region.labelPosition.y}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    className="pointer-events-none select-none fill-white text-[11px] font-medium"
-                    style={{ paintOrder: "stroke", stroke: "#00000080", strokeWidth: 3 }}
+                    className="pointer-events-none select-none fill-white text-[5.5px] font-medium"
+                    style={{ paintOrder: "stroke", stroke: "#00000080", strokeWidth: 1.5 }}
                   >
                     {region.name}
                   </text>
