@@ -9,10 +9,11 @@ import { RegionMap } from "@/components/map/RegionMap";
 import { MOCK_MAP_VIEWBOX } from "@/data/mockRegions";
 import { Podium } from "@/components/results/Podium";
 import { computeTeamStats } from "@/lib/teamStats";
+import { downloadResultsCsv } from "@/lib/exportResultsCsv";
 
 export default function ResultsPage() {
   const router = useRouter();
-  const { game, leaveGame } = useGameStore();
+  const { game, gameCode, leaveGame } = useGameStore();
   const { teams, regions, eventLogs } = game;
 
   const handleLeaveGame = () => {
@@ -144,13 +145,22 @@ export default function ResultsPage() {
         </table>
       </section>
 
-      <button
-        type="button"
-        onClick={handleLeaveGame}
-        className="self-center rounded-md bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
-      >
-        처음으로 돌아가기
-      </button>
+      <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+        <button
+          type="button"
+          onClick={() => downloadResultsCsv(rankedTeams, eventLogs, gameCode)}
+          className="rounded-md border border-neutral-700 px-6 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-neutral-900"
+        >
+          결과 CSV 다운로드
+        </button>
+        <button
+          type="button"
+          onClick={handleLeaveGame}
+          className="rounded-md bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
+        >
+          처음으로 돌아가기
+        </button>
+      </div>
     </main>
   );
 }

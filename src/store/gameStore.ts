@@ -4,7 +4,11 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Game, Team } from "@/types/game";
 import type { RpcQuestion } from "@/lib/supabase/types";
 import * as api from "@/lib/supabase/queries";
-import { subscribeToGame, unsubscribeFromGame } from "@/lib/supabase/realtime";
+import {
+  subscribeToGame,
+  unsubscribeFromGame,
+  type ConnectionStatus,
+} from "@/lib/supabase/realtime";
 
 export interface ActiveChallenge {
   regionId: string;
@@ -33,6 +37,7 @@ interface GameStore {
   myTeamId: string | null;
   activeChallenge: ActiveChallenge | null;
   isConnected: boolean;
+  connectionStatus: ConnectionStatus;
   isLoading: boolean;
   _channel: RealtimeChannel[] | null;
 
@@ -51,13 +56,16 @@ interface GameStore {
   setStartingRegion: (teamId: string, regionId: string | null) => Promise<boolean>;
   setReady: (teamId: string, isReady: boolean) => Promise<void>;
   setTimeLimitSec: (timeLimitSec: number) => Promise<void>;
+  setComebackAssist: (enabled: boolean) => Promise<void>;
   startGame: () => Promise<void>;
   endGame: () => Promise<void>;
   pauseGame: () => Promise<void>;
   resumeGame: () => Promise<void>;
 
   startChallenge: (regionId: string, teamId: string) => Promise<boolean>;
-  submitChallengeAnswer: (selectedAnswer: string) => Promise<boolean>;
+  submitChallengeAnswer: (
+    selectedAnswer: string
+  ) => Promise<{ correct: boolean; pointsAwarded: number; bonusApplied: boolean }>;
   cancelChallenge: () => void;
 }
 
@@ -71,10 +79,14 @@ async function connectToGame(
 
   set({ isLoading: true });
   const game = await api.fetchFullGame(gameId);
-  const channel = subscribeToGame(gameId, () => {
-    get().refreshGame();
-  });
-  set({ game, isConnected: true, isLoading: false, _channel: channel });
+  const channel = subscribeToGame(
+    gameId,
+    () => {
+      get().refreshGame();
+    },
+    (status) => set({ connectionStatus: status, isConnected: status === "connected" })
+  );
+  set({ game, isConnected: true, connectionStatus: "connected", isLoading: false, _channel: channel });
 }
 
 export const useGameStore = create<GameStore>()(
@@ -86,6 +98,7 @@ export const useGameStore = create<GameStore>()(
       myTeamId: null,
       activeChallenge: null,
       isConnected: false,
+      connectionStatus: "disconnected",
       isLoading: false,
       _channel: null,
 
@@ -120,6 +133,7 @@ export const useGameStore = create<GameStore>()(
           myTeamId: null,
           activeChallenge: null,
           isConnected: false,
+          connectionStatus: "disconnected",
           _channel: null,
         });
       },
@@ -190,6 +204,13 @@ export const useGameStore = create<GameStore>()(
         await get().refreshGame();
       },
 
+      setComebackAssist: async (enabled) => {
+        const { gameId } = get();
+        if (!gameId) return;
+        await api.setComebackAssist(gameId, enabled);
+        await get().refreshGame();
+      },
+
       startGame: async () => {
         const { gameId } = get();
         if (!gameId) return;
@@ -230,7 +251,9 @@ export const useGameStore = create<GameStore>()(
 
       submitChallengeAnswer: async (selectedAnswer) => {
         const { gameId, activeChallenge } = get();
-        if (!gameId || !activeChallenge) return false;
+        if (!gameId || !activeChallenge) {
+          return { correct: false, pointsAwarded: 0, bonusApplied: false };
+        }
         const result = await api.submitCapture(
           gameId,
           activeChallenge.regionId,
@@ -240,7 +263,11 @@ export const useGameStore = create<GameStore>()(
         );
         set({ activeChallenge: null });
         await get().refreshGame();
-        return result.correct ?? false;
+        return {
+          correct: result.correct ?? false,
+          pointsAwarded: result.pointsAwarded ?? 0,
+          bonusApplied: result.bonusApplied ?? false,
+        };
       },
 
       cancelChallenge: () => set({ activeChallenge: null }),
@@ -261,6 +288,17 @@ export const useGameStore = create<GameStore>()(
 
 export function isColorTaken(teams: Team[], color: string, excludeTeamId?: string) {
   return teams.some((t) => t.color === color && t.id !== excludeTeamId);
+}
+
+// 와이파이가 끊기면 즉시 "재연결 중" 상태로 전환하고, 다시 붙으면 채널을 새로
+// 구독해 전체 상태를 재조회한다 (오프라인 동안 놓친 변경사항까지 복구).
+if (typeof window !== "undefined") {
+  window.addEventListener("offline", () => {
+    useGameStore.setState({ connectionStatus: "disconnected", isConnected: false });
+  });
+  window.addEventListener("online", () => {
+    useGameStore.getState().reconnect();
+  });
 }
 
 if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {

@@ -39,6 +39,13 @@ export function TeacherLiveConsole() {
           </span>
           <button
             type="button"
+            onClick={() => window.open("/display", "_blank", "noopener,noreferrer")}
+            className="rounded-md bg-neutral-800 px-3 py-1.5 text-xs font-semibold text-neutral-200 hover:bg-neutral-700"
+          >
+            전광판 모드 열기
+          </button>
+          <button
+            type="button"
             onClick={() => (game.isPaused ? resumeGame() : pauseGame())}
             className="rounded-md bg-neutral-800 px-3 py-1.5 text-xs font-semibold text-neutral-200 hover:bg-neutral-700"
           >

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useGameStore } from "@/store/gameStore";
+import { GameCodeQR } from "@/components/common/GameCodeQR";
 
 export function TeacherWaitingRoom() {
-  const { game, gameCode, setTimeLimitSec, startGame } = useGameStore();
+  const { game, gameCode, setTimeLimitSec, startGame, setComebackAssist } = useGameStore();
   const { teams } = game;
 
   const readyCount = teams.filter((t) => t.isReady).length;
@@ -29,12 +30,15 @@ export function TeacherWaitingRoom() {
         </Link>
       </header>
 
-      <section className="flex flex-col items-center gap-1 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-4">
-        <p className="text-xs text-neutral-400">학생 참가 코드</p>
-        <p className="font-mono text-3xl font-bold tracking-widest text-white">{gameCode}</p>
+      <section className="flex flex-col items-center gap-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-4 sm:flex-row sm:justify-center sm:gap-6">
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-xs text-neutral-400">학생 참가 코드</p>
+          <p className="font-mono text-3xl font-bold tracking-widest text-white">{gameCode}</p>
+        </div>
+        {gameCode && <GameCodeQR code={gameCode} />}
       </section>
 
-      <section className="flex items-center gap-3 rounded-lg border border-neutral-800 px-4 py-3">
+      <section className="flex flex-wrap items-center gap-4 rounded-lg border border-neutral-800 px-4 py-3">
         <label className="flex items-center gap-2 text-sm font-medium text-neutral-300">
           전체 제한시간(분)
           <input
@@ -44,6 +48,16 @@ export function TeacherWaitingRoom() {
             onChange={(e) => setTimeLimitSec(Math.max(1, Number(e.target.value) || 1) * 60)}
             className="w-20 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-white focus:border-blue-500 focus:outline-none"
           />
+        </label>
+
+        <label className="flex items-center gap-2 text-sm font-medium text-neutral-300">
+          <input
+            type="checkbox"
+            checked={game.comebackAssist}
+            onChange={(e) => setComebackAssist(e.target.checked)}
+            className="h-4 w-4 accent-blue-600"
+          />
+          역전 밸런싱 (꼴찌 팀 점령 시 점수 보너스)
         </label>
       </section>
 

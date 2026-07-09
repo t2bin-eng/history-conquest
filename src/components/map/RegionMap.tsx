@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { select } from "d3-selection";
+import { zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom";
 import type { Region, Team } from "@/types/game";
 import { NEUTRAL_FILL, difficultyLabel } from "@/lib/regionDisplay";
 
@@ -17,6 +19,9 @@ interface RegionMapProps {
   className?: string;
 }
 
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 6;
+
 export function RegionMap({
   regions,
   teams,
@@ -30,67 +35,144 @@ export function RegionMap({
   className,
 }: RegionMapProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 });
+  const svgRef = useRef<SVGSVGElement>(null);
+  const zoomBehaviorRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const hoveredRegion = interactive ? regions.find((r) => r.id === hoveredId) : undefined;
 
+  // 확대/축소 + 드래그 이동(데스크톱 휠, 모바일 핀치/드래그). 가독성을 위해
+  // 지도 자체를 키울 수 있게 하되, 미니맵(interactive=false)에는 적용하지 않는다.
+  useEffect(() => {
+    if (!interactive || !svgRef.current) return;
+    const svgEl = svgRef.current;
+    const svgSel = select(svgEl);
+
+    const zoomBehavior = zoom<SVGSVGElement, unknown>()
+      .scaleExtent([MIN_ZOOM, MAX_ZOOM])
+      .on("zoom", (event) => {
+        const rect = svgEl.getBoundingClientRect();
+        const scale = rect.width > 0 ? viewBoxWidth / rect.width : 1;
+        const k = event.transform.k;
+        const rawX = event.transform.x * scale;
+        const rawY = event.transform.y * scale;
+        // 확대된 만큼만 이동 가능하도록 지도를 화면 밖으로 완전히 벗어나지 않게 고정
+        const minX = viewBoxWidth - viewBoxWidth * k;
+        const minY = viewBoxHeight - viewBoxHeight * k;
+        setTransform({
+          k,
+          x: Math.min(0, Math.max(minX, rawX)),
+          y: Math.min(0, Math.max(minY, rawY)),
+        });
+      });
+
+    svgSel.call(zoomBehavior);
+    svgSel.on("dblclick.zoom", null); // 더블탭이 지역 선택과 겹치지 않도록
+    zoomBehaviorRef.current = zoomBehavior;
+
+    return () => {
+      svgSel.on(".zoom", null);
+    };
+  }, [interactive, viewBoxWidth, viewBoxHeight]);
+
+  const resetZoom = () => {
+    if (!svgRef.current || !zoomBehaviorRef.current) return;
+    select(svgRef.current).call(zoomBehaviorRef.current.transform, zoomIdentity);
+    setTransform({ k: 1, x: 0, y: 0 });
+  };
+
+  const hoveredScreenPos = hoveredRegion
+    ? {
+        x: hoveredRegion.labelPosition.x * transform.k + transform.x,
+        y: hoveredRegion.labelPosition.y * transform.k + transform.y,
+      }
+    : null;
+
   return (
-    <svg
-      viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
-      className={className ?? "h-full w-full"}
-    >
-      {regions.map((region) => {
-        const owner = region.ownerTeamId ? teamById.get(region.ownerTeamId) : undefined;
-        const fill = owner?.color ?? NEUTRAL_FILL[region.difficulty];
-        const isSelected = selectedRegionId === region.id;
-        const isSelectable = selectableRegionIds?.includes(region.id) ?? false;
-        const clickable = interactive && !!onRegionClick;
+    <div className={`relative ${className ?? "h-full w-full"}`}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+        className="h-full w-full"
+        style={interactive ? { touchAction: "none" } : undefined}
+      >
+        <g transform={`translate(${transform.x} ${transform.y}) scale(${transform.k})`}>
+          {regions.map((region) => {
+            const owner = region.ownerTeamId ? teamById.get(region.ownerTeamId) : undefined;
+            const fill = owner?.color ?? NEUTRAL_FILL[region.difficulty];
+            const isSelected = selectedRegionId === region.id;
+            const isSelectable = selectableRegionIds?.includes(region.id) ?? false;
+            const clickable = interactive && !!onRegionClick;
 
-        return (
-          <g
-            key={region.id}
-            onClick={clickable ? () => onRegionClick(region.id) : undefined}
-            onMouseEnter={() => interactive && setHoveredId(region.id)}
-            onMouseLeave={() => interactive && setHoveredId(null)}
-            className={clickable ? "cursor-pointer" : undefined}
-          >
-            <path
-              d={region.svgPath}
-              fill={fill}
-              stroke={isSelected ? "#ffffff" : isSelectable ? "#60a5fa" : "#0a0a0a"}
-              strokeWidth={isSelected ? 3 : isSelectable ? 2 : 1}
-              strokeDasharray={isSelectable && !isSelected ? "6 4" : undefined}
-              className="transition-colors duration-500"
-            />
-            {showLabels && (
-              <text
-                x={region.labelPosition.x}
-                y={region.labelPosition.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className="pointer-events-none select-none fill-white text-[11px] font-medium"
-                style={{ paintOrder: "stroke", stroke: "#00000080", strokeWidth: 3 }}
+            return (
+              <g
+                key={region.id}
+                onClick={clickable ? () => onRegionClick(region.id) : undefined}
+                onMouseEnter={() => interactive && setHoveredId(region.id)}
+                onMouseLeave={() => interactive && setHoveredId(null)}
+                className={clickable ? "cursor-pointer" : undefined}
               >
-                {region.name}
-              </text>
-            )}
-          </g>
-        );
-      })}
+                <path
+                  d={region.svgPath}
+                  fill={fill}
+                  stroke={isSelected ? "#ffffff" : isSelectable ? "#60a5fa" : "#0a0a0a"}
+                  strokeWidth={isSelected ? 3 : isSelectable ? 2 : 1}
+                  strokeDasharray={isSelectable && !isSelected ? "6 4" : undefined}
+                  vectorEffect="non-scaling-stroke"
+                  className="transition-colors duration-500"
+                />
+                {showLabels && (
+                  <text
+                    x={region.labelPosition.x}
+                    y={region.labelPosition.y}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    className="pointer-events-none select-none fill-white text-[11px] font-medium"
+                    style={{ paintOrder: "stroke", stroke: "#00000080", strokeWidth: 3 }}
+                  >
+                    {region.name}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </g>
 
-      {hoveredRegion && (
-        <RegionTooltip
-          region={hoveredRegion}
-          owner={
-            hoveredRegion.ownerTeamId ? teamById.get(hoveredRegion.ownerTeamId) : undefined
-          }
-        />
+        {hoveredRegion && hoveredScreenPos && (
+          <RegionTooltip
+            region={hoveredRegion}
+            pos={hoveredScreenPos}
+            owner={
+              hoveredRegion.ownerTeamId ? teamById.get(hoveredRegion.ownerTeamId) : undefined
+            }
+          />
+        )}
+      </svg>
+
+      {interactive && transform.k > 1 && (
+        <button
+          type="button"
+          onClick={resetZoom}
+          className="absolute bottom-2 right-2 rounded-md bg-neutral-900/90 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg ring-1 ring-neutral-700 hover:bg-neutral-800"
+        >
+          지도 초기화
+        </button>
       )}
-    </svg>
+    </div>
   );
 }
 
-function RegionTooltip({ region, owner }: { region: Region; owner?: Team }) {
-  const { x, y } = region.labelPosition;
+function RegionTooltip({
+  region,
+  owner,
+  pos,
+}: {
+  region: Region;
+  owner?: Team;
+  pos: { x: number; y: number };
+}) {
+  const { x, y } = pos;
   return (
     <foreignObject x={x - 55} y={y - 58} width={110} height={50} className="overflow-visible">
       <div className="pointer-events-none rounded-md bg-neutral-900/95 px-2 py-1 text-center text-[10px] leading-tight text-white shadow-lg ring-1 ring-neutral-700">

@@ -8,6 +8,7 @@ const ROUTES = [
   { href: "/teacher", label: "교사 대시보드" },
   { href: "/teacher/questions", label: "문제 은행" },
   { href: "/play", label: "게임 플레이" },
+  { href: "/display", label: "전광판" },
   { href: "/results", label: "결과" },
 ];
 

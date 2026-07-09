@@ -1,19 +1,29 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
 
 export default function JoinPage() {
+  return (
+    <Suspense fallback={null}>
+      <JoinPageInner />
+    </Suspense>
+  );
+}
+
+function JoinPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const joinGameByCode = useGameStore((s) => s.joinGameByCode);
 
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const autoJoinedRef = useRef(false);
 
-  const handleJoin = async () => {
-    const trimmed = code.trim();
+  const handleJoin = async (codeToJoin?: string) => {
+    const trimmed = (codeToJoin ?? code).trim();
     if (!trimmed) return;
     setIsJoining(true);
     setError(null);
@@ -30,6 +40,17 @@ export default function JoinPage() {
       setIsJoining(false);
     }
   };
+
+  // QR코드로 들어온 경우(?code=XXXXXX) 자동으로 입력 + 참가 시도
+  useEffect(() => {
+    const codeFromUrl = searchParams.get("code");
+    if (!codeFromUrl || autoJoinedRef.current) return;
+    autoJoinedRef.current = true;
+    const normalized = codeFromUrl.trim().toUpperCase();
+    setCode(normalized);
+    handleJoin(normalized);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
@@ -54,7 +75,7 @@ export default function JoinPage() {
 
       <button
         type="button"
-        onClick={handleJoin}
+        onClick={() => handleJoin()}
         disabled={!code.trim() || isJoining}
         className="rounded-md bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-800 disabled:text-neutral-500"
       >

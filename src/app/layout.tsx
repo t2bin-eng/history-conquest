@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { DevNav } from "@/components/dev/DevNav";
 import { GameAudioController } from "@/components/audio/GameAudioController";
+import { BrandFooter } from "@/components/brand/BrandFooter";
+import { ConnectionBanner } from "@/components/common/ConnectionBanner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,9 +32,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <ConnectionBanner />
         <DevNav />
         <GameAudioController />
         {children}
+        <BrandFooter />
       </body>
     </html>
   );

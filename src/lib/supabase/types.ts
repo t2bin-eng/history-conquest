@@ -95,6 +95,8 @@ export interface SubmitCaptureResult {
   reason?: "region_not_found" | "not_eligible" | "question_not_found";
   correct?: boolean;
   reconquest?: boolean;
+  pointsAwarded?: number;
+  bonusApplied?: boolean;
 }
 
 export interface UploadQuestionInput {

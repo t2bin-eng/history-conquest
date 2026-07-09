@@ -28,9 +28,12 @@ export default function PlayPage() {
   const myTeam = game.teams.find((t) => t.id === myTeamId) ?? null;
 
   const [toast, setToast] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ correct: boolean; regionName: string; points: number } | null>(
-    null
-  );
+  const [feedback, setFeedback] = useState<{
+    correct: boolean;
+    regionName: string;
+    points: number;
+    bonusApplied: boolean;
+  } | null>(null);
 
   const remainingSec = useRemainingSeconds(game);
   const allCaptured = game.regions.length > 0 && game.regions.every((r) => r.ownerTeamId !== null);
@@ -107,8 +110,8 @@ export default function PlayPage() {
   const handleAnswer = async (choice: string) => {
     if (!activeChallenge) return;
     const region = game.regions.find((r) => r.id === activeChallenge.regionId);
-    const correct = await submitChallengeAnswer(choice);
-    setFeedback({ correct, regionName: region?.name ?? "", points: region?.points ?? 0 });
+    const { correct, pointsAwarded, bonusApplied } = await submitChallengeAnswer(choice);
+    setFeedback({ correct, regionName: region?.name ?? "", points: pointsAwarded, bonusApplied });
     window.setTimeout(() => setFeedback(null), 1800);
   };
 
@@ -116,7 +119,7 @@ export default function PlayPage() {
     if (!activeChallenge) return;
     const region = game.regions.find((r) => r.id === activeChallenge.regionId);
     await submitChallengeAnswer("__TIMEOUT__");
-    setFeedback({ correct: false, regionName: region?.name ?? "", points: 0 });
+    setFeedback({ correct: false, regionName: region?.name ?? "", points: 0, bonusApplied: false });
     window.setTimeout(() => setFeedback(null), 1800);
   };
 
@@ -194,7 +197,9 @@ export default function PlayPage() {
           }`}
         >
           {feedback.correct
-            ? `${feedback.regionName} 정복! +${feedback.points}점`
+            ? `${feedback.regionName} 정복! +${feedback.points}점${
+                feedback.bonusApplied ? " (역전 보너스!)" : ""
+              }`
             : `${feedback.regionName} 오답`}
         </div>
       )}

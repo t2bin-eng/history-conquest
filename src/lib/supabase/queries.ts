@@ -135,6 +135,14 @@ export async function setTimeLimitSec(gameId: string, timeLimitSec: number): Pro
   if (error) throw error;
 }
 
+export async function setComebackAssist(gameId: string, enabled: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("games")
+    .update({ comeback_assist: enabled })
+    .eq("id", gameId);
+  if (error) throw error;
+}
+
 export async function startGame(gameId: string): Promise<void> {
   const { error } = await supabase.rpc("start_game", { p_game_id: gameId });
   if (error) throw error;
