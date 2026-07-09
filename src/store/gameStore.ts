@@ -40,6 +40,7 @@ interface GameStore {
   connectionStatus: ConnectionStatus;
   isLoading: boolean;
   _channel: RealtimeChannel[] | null;
+  _pollInterval: ReturnType<typeof setInterval> | null;
 
   createNewGame: (timeLimitSec: number) => Promise<string>;
   joinGameByCode: (code: string) => Promise<boolean>;
@@ -69,6 +70,12 @@ interface GameStore {
   cancelChallenge: () => void;
 }
 
+// 모바일에서 화면이 꺼지거나 백그라운드로 전환되면 Realtime 소켓이 겉으로는
+// "연결됨" 상태를 유지한 채 조용히 업데이트를 놓치는 경우가 있다 (특히 교사가
+// 게임을 강제 종료했는데 학생 화면이 넘어가지 않는 문제로 나타남). Realtime을
+// 믿기만 하지 않고, 주기적으로 게임 상태를 직접 다시 받아와 그 간극을 메운다.
+const POLL_INTERVAL_MS = 5000;
+
 async function connectToGame(
   gameId: string,
   set: (partial: Partial<GameStore>) => void,
@@ -76,6 +83,8 @@ async function connectToGame(
 ) {
   const prevChannel = get()._channel;
   if (prevChannel) unsubscribeFromGame(prevChannel);
+  const prevPoll = get()._pollInterval;
+  if (prevPoll) clearInterval(prevPoll);
 
   set({ isLoading: true });
   const game = await api.fetchFullGame(gameId);
@@ -86,7 +95,17 @@ async function connectToGame(
     },
     (status) => set({ connectionStatus: status, isConnected: status === "connected" })
   );
-  set({ game, isConnected: true, connectionStatus: "connected", isLoading: false, _channel: channel });
+  const pollInterval = setInterval(() => {
+    get().refreshGame();
+  }, POLL_INTERVAL_MS);
+  set({
+    game,
+    isConnected: true,
+    connectionStatus: "connected",
+    isLoading: false,
+    _channel: channel,
+    _pollInterval: pollInterval,
+  });
 }
 
 export const useGameStore = create<GameStore>()(
@@ -101,6 +120,7 @@ export const useGameStore = create<GameStore>()(
       connectionStatus: "disconnected",
       isLoading: false,
       _channel: null,
+      _pollInterval: null,
 
       createNewGame: async (timeLimitSec) => {
         const row = await api.createGame(timeLimitSec);
@@ -126,6 +146,8 @@ export const useGameStore = create<GameStore>()(
       leaveGame: () => {
         const channel = get()._channel;
         if (channel) unsubscribeFromGame(channel);
+        const pollInterval = get()._pollInterval;
+        if (pollInterval) clearInterval(pollInterval);
         set({
           game: EMPTY_GAME,
           gameId: null,
@@ -135,6 +157,7 @@ export const useGameStore = create<GameStore>()(
           isConnected: false,
           connectionStatus: "disconnected",
           _channel: null,
+          _pollInterval: null,
         });
       },
 

@@ -2,14 +2,15 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useGameStore } from "@/store/gameStore";
 
-// 실제 플레이에 방해되지 않도록, 학생이 게임을 진행하는 화면에서는 로고를 숨긴다.
-const HIDDEN_ON = ["/register", "/lobby", "/play"];
-
-/** 학생 플레이 화면을 제외한 화면 하단에 고정 표시되는 제작자 워터마크. */
+/** 교사 대기실(게임 시작 전) 화면에만 표시되는 제작자 워터마크. 그 외
+ * 모든 화면(홈, 학생 화면, 실시간 관제, 전광판, 결과 등)에서는 숨긴다. */
 export function BrandFooter() {
   const pathname = usePathname();
-  if (HIDDEN_ON.some((path) => pathname?.startsWith(path))) return null;
+  const status = useGameStore((s) => s.game.status);
+  const isTeacherWaitingRoom = pathname === "/teacher" && status === "WAITING";
+  if (!isTeacherWaitingRoom) return null;
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center pb-1">
