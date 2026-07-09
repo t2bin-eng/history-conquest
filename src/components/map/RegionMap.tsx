@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom";
+import { AnimatePresence, motion } from "framer-motion";
 import type { Region, Team } from "@/types/game";
 import { NEUTRAL_FILL, difficultyLabel } from "@/lib/regionDisplay";
 
@@ -36,11 +37,41 @@ export function RegionMap({
 }: RegionMapProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 });
+  const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomBehaviorRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const prevOwnerRef = useRef<Map<string, string | null>>(new Map());
 
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const hoveredRegion = interactive ? regions.find((r) => r.id === hoveredId) : undefined;
+
+  // 방금 점령/탈환된 지역을 감지해 1.2초간 반짝이는 표시를 붙인다 — 누가 언제
+  // 땅을 가져갔는지 화면만 봐도 바로 알 수 있게 하기 위함.
+  useEffect(() => {
+    const prevOwners = prevOwnerRef.current;
+    const justCaptured = new Set<string>();
+    for (const region of regions) {
+      const prevOwner = prevOwners.get(region.id);
+      if (prevOwner !== undefined && region.ownerTeamId && region.ownerTeamId !== prevOwner) {
+        justCaptured.add(region.id);
+      }
+    }
+    prevOwnerRef.current = new Map(regions.map((r) => [r.id, r.ownerTeamId]));
+
+    if (justCaptured.size === 0) return;
+    // regions prop 변화(외부 데이터 동기화)에 대한 반응이라 정당한 setState — 렌더 중
+    // 파생시킬 수 없는, 이전 렌더와의 비교(ref)가 필요한 로직이다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFlashIds((prev) => new Set([...prev, ...justCaptured]));
+    const timer = window.setTimeout(() => {
+      setFlashIds((prev) => {
+        const next = new Set(prev);
+        justCaptured.forEach((id) => next.delete(id));
+        return next;
+      });
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [regions]);
 
   // 확대/축소 + 드래그 이동(데스크톱 휠, 모바일 핀치/드래그). 가독성을 위해
   // 지도 자체를 키울 수 있게 하되, 미니맵(interactive=false)에는 적용하지 않는다.
@@ -103,6 +134,7 @@ export function RegionMap({
             const fill = owner?.color ?? NEUTRAL_FILL[region.difficulty];
             const isSelected = selectedRegionId === region.id;
             const isSelectable = selectableRegionIds?.includes(region.id) ?? false;
+            const isFlashing = flashIds.has(region.id);
             const clickable = interactive && !!onRegionClick;
 
             return (
@@ -117,11 +149,38 @@ export function RegionMap({
                   d={region.svgPath}
                   fill={fill}
                   stroke={isSelected ? "#ffffff" : isSelectable ? "#60a5fa" : "#0a0a0a"}
-                  strokeWidth={isSelected ? 3 : isSelectable ? 2 : 1}
-                  strokeDasharray={isSelectable && !isSelected ? "6 4" : undefined}
+                  strokeWidth={isSelected ? 4 : isSelectable ? 3 : 1}
+                  strokeDasharray={isSelectable && !isSelected ? "7 4" : undefined}
                   vectorEffect="non-scaling-stroke"
-                  className="transition-colors duration-500"
+                  className={`transition-colors duration-500 ${
+                    isSelectable && !isSelected ? "animate-pulse" : ""
+                  }`}
+                  style={{
+                    filter: isSelected
+                      ? "drop-shadow(0 0 5px rgba(255,255,255,0.95))"
+                      : isSelectable
+                        ? "drop-shadow(0 0 4px rgba(96,165,250,0.75))"
+                        : undefined,
+                  }}
                 />
+                <AnimatePresence>
+                  {isFlashing && owner && (
+                    <motion.circle
+                      cx={region.labelPosition.x}
+                      cy={region.labelPosition.y}
+                      r={4}
+                      fill="none"
+                      stroke={owner.color}
+                      strokeWidth={3}
+                      initial={{ r: 4, opacity: 1 }}
+                      animate={{ r: 46, opacity: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 1.1, ease: "easeOut" }}
+                      className="pointer-events-none"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  )}
+                </AnimatePresence>
                 {showLabels && (
                   <text
                     x={region.labelPosition.x}
