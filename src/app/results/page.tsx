@@ -80,6 +80,8 @@ export default function ResultsPage() {
             teams={teams}
             viewBoxWidth={MOCK_MAP_VIEWBOX.width}
             viewBoxHeight={MOCK_MAP_VIEWBOX.height}
+            viewBoxMinX={MOCK_MAP_VIEWBOX.minX}
+            viewBoxMinY={MOCK_MAP_VIEWBOX.minY}
             interactive={false}
           />
         </div>

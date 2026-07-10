@@ -1,17 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import type { RpcQuestion } from "@/lib/supabase/types";
 import { sanitizeQuestionHtml } from "@/lib/sanitizeQuestionHtml";
 
 interface QuizModalProps {
   question: RpcQuestion;
   regionName: string;
+  isBettingZone: boolean;
   onAnswer: (choice: string) => void;
   onTimeUp: () => void;
 }
 
-export function QuizModal({ question, regionName, onAnswer, onTimeUp }: QuizModalProps) {
+export function QuizModal({
+  question,
+  regionName,
+  isBettingZone,
+  onAnswer,
+  onTimeUp,
+}: QuizModalProps) {
   const [timeLeft, setTimeLeft] = useState(question.timeLimitSec);
   const [answered, setAnswered] = useState(false);
   const onTimeUpRef = useRef(onTimeUp);
@@ -46,10 +54,30 @@ export function QuizModal({ question, regionName, onAnswer, onTimeUp }: QuizModa
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
       <div
-        className={`w-full max-w-md rounded-xl bg-neutral-900 p-6 shadow-2xl ring-1 ring-neutral-800 ${
-          urgent ? "animate-[shake_0.3s_ease-in-out_infinite]" : ""
-        }`}
+        className={`w-full max-w-md rounded-xl bg-neutral-900 p-6 shadow-2xl ring-1 ${
+          isBettingZone ? "ring-2 ring-amber-400" : "ring-neutral-800"
+        } ${urgent ? "animate-[shake_0.3s_ease-in-out_infinite]" : ""}`}
+        style={
+          isBettingZone
+            ? { boxShadow: "0 0 0 1px rgba(251,191,36,0.4), 0 0 24px rgba(251,191,36,0.35)" }
+            : undefined
+        }
       >
+        {isBettingZone && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: "spring", stiffness: 400, damping: 18 }}
+            className="mb-4 flex items-center gap-2 rounded-lg bg-amber-400/15 px-3 py-2 ring-1 ring-amber-400/40"
+          >
+            <span className="text-lg">⚡</span>
+            <div className="text-xs leading-snug text-amber-300">
+              <p className="font-bold">베팅존입니다!</p>
+              <p className="text-amber-300/80">정답 시 점수 2배, 오답 시 감점돼요.</p>
+            </div>
+          </motion.div>
+        )}
+
         <div className="mb-4 flex items-center justify-between">
           <span className="text-xs font-medium text-neutral-400">
             {regionName} · {question.category}

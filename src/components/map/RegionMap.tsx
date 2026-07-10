@@ -12,6 +12,8 @@ interface RegionMapProps {
   teams: Team[];
   viewBoxWidth: number;
   viewBoxHeight: number;
+  viewBoxMinX?: number;
+  viewBoxMinY?: number;
   onRegionClick?: (regionId: string) => void;
   selectedRegionId?: string | null;
   selectableRegionIds?: string[];
@@ -28,6 +30,8 @@ export function RegionMap({
   teams,
   viewBoxWidth,
   viewBoxHeight,
+  viewBoxMinX = 0,
+  viewBoxMinY = 0,
   onRegionClick,
   selectedRegionId = null,
   selectableRegionIds,
@@ -124,7 +128,7 @@ export function RegionMap({
     <div className={`relative ${className ?? "h-full w-full"}`}>
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+        viewBox={`${viewBoxMinX} ${viewBoxMinY} ${viewBoxWidth} ${viewBoxHeight}`}
         className="h-full w-full"
         style={interactive ? { touchAction: "none" } : undefined}
       >

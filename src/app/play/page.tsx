@@ -33,6 +33,8 @@ export default function PlayPage() {
     regionName: string;
     points: number;
     bonusApplied: boolean;
+    bettingZone: boolean;
+    pointsLost: number;
   } | null>(null);
 
   const remainingSec = useRemainingSeconds(game);
@@ -110,16 +112,31 @@ export default function PlayPage() {
   const handleAnswer = async (choice: string) => {
     if (!activeChallenge) return;
     const region = game.regions.find((r) => r.id === activeChallenge.regionId);
-    const { correct, pointsAwarded, bonusApplied } = await submitChallengeAnswer(choice);
-    setFeedback({ correct, regionName: region?.name ?? "", points: pointsAwarded, bonusApplied });
+    const { correct, pointsAwarded, bonusApplied, bettingZone, pointsLost } =
+      await submitChallengeAnswer(choice);
+    setFeedback({
+      correct,
+      regionName: region?.name ?? "",
+      points: pointsAwarded,
+      bonusApplied,
+      bettingZone,
+      pointsLost,
+    });
     window.setTimeout(() => setFeedback(null), 1800);
   };
 
   const handleTimeUp = async () => {
     if (!activeChallenge) return;
     const region = game.regions.find((r) => r.id === activeChallenge.regionId);
-    await submitChallengeAnswer("__TIMEOUT__");
-    setFeedback({ correct: false, regionName: region?.name ?? "", points: 0, bonusApplied: false });
+    const { bettingZone, pointsLost } = await submitChallengeAnswer("__TIMEOUT__");
+    setFeedback({
+      correct: false,
+      regionName: region?.name ?? "",
+      points: 0,
+      bonusApplied: false,
+      bettingZone,
+      pointsLost,
+    });
     window.setTimeout(() => setFeedback(null), 1800);
   };
 
@@ -171,6 +188,8 @@ export default function PlayPage() {
             teams={game.teams}
             viewBoxWidth={MOCK_MAP_VIEWBOX.width}
             viewBoxHeight={MOCK_MAP_VIEWBOX.height}
+            viewBoxMinX={MOCK_MAP_VIEWBOX.minX}
+            viewBoxMinY={MOCK_MAP_VIEWBOX.minY}
             onRegionClick={handleRegionClick}
             selectableRegionIds={challengeableRegionIds}
           />
@@ -180,6 +199,8 @@ export default function PlayPage() {
           teams={game.teams}
           viewBoxWidth={MOCK_MAP_VIEWBOX.width}
           viewBoxHeight={MOCK_MAP_VIEWBOX.height}
+          viewBoxMinX={MOCK_MAP_VIEWBOX.minX}
+          viewBoxMinY={MOCK_MAP_VIEWBOX.minY}
           className="hidden aspect-[5/4] md:block"
         />
       </div>
@@ -198,9 +219,13 @@ export default function PlayPage() {
         >
           {feedback.correct
             ? `${feedback.regionName} 정복! +${feedback.points}점${
-                feedback.bonusApplied ? " (역전 보너스!)" : ""
-              }`
-            : `${feedback.regionName} 오답`}
+                feedback.bettingZone ? " (베팅존 2배!)" : ""
+              }${feedback.bonusApplied ? " (역전 보너스!)" : ""}`
+            : `${feedback.regionName} 오답${
+                feedback.bettingZone && feedback.pointsLost > 0
+                  ? ` — 베팅존 감점 -${feedback.pointsLost}점`
+                  : ""
+              }`}
         </div>
       )}
 
@@ -209,6 +234,7 @@ export default function PlayPage() {
           key={activeChallenge.question.id}
           question={activeChallenge.question}
           regionName={game.regions.find((r) => r.id === activeChallenge.regionId)?.name ?? ""}
+          isBettingZone={activeChallenge.isBettingZone}
           onAnswer={handleAnswer}
           onTimeUp={handleTimeUp}
         />

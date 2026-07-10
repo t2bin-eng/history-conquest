@@ -7,4 +7,12 @@ export const TEAM_COLOR_PRESETS = [
   { name: "녹림", value: "#16a34a" },
   { name: "자운", value: "#9333ea" },
   { name: "동백", value: "#ec4899" },
+  { name: "주황", value: "#ea580c" },
+  { name: "청옥", value: "#0d9488" },
+  { name: "남색", value: "#4f46e5" },
+  { name: "연두", value: "#65a30d" },
+  { name: "갈색", value: "#92400e" },
+  { name: "하늘", value: "#0284c7" },
+  { name: "장미", value: "#e11d48" },
+  { name: "회색", value: "#6b7280" },
 ] as const;

@@ -107,6 +107,8 @@ export default function LobbyPage() {
           teams={game.teams}
           viewBoxWidth={MOCK_MAP_VIEWBOX.width}
           viewBoxHeight={MOCK_MAP_VIEWBOX.height}
+          viewBoxMinX={MOCK_MAP_VIEWBOX.minX}
+          viewBoxMinY={MOCK_MAP_VIEWBOX.minY}
           onRegionClick={handleRegionClick}
           selectedRegionId={myTeam.startingRegionId ?? previewRegionId}
           selectableRegionIds={myTeam.isReady ? [] : selectableRegionIds}

@@ -14,6 +14,7 @@ export interface ActiveChallenge {
   regionId: string;
   teamId: string;
   question: RpcQuestion;
+  isBettingZone: boolean;
 }
 
 const EMPTY_GAME: Game = {
@@ -64,9 +65,13 @@ interface GameStore {
   resumeGame: () => Promise<void>;
 
   startChallenge: (regionId: string, teamId: string) => Promise<boolean>;
-  submitChallengeAnswer: (
-    selectedAnswer: string
-  ) => Promise<{ correct: boolean; pointsAwarded: number; bonusApplied: boolean }>;
+  submitChallengeAnswer: (selectedAnswer: string) => Promise<{
+    correct: boolean;
+    pointsAwarded: number;
+    bonusApplied: boolean;
+    bettingZone: boolean;
+    pointsLost: number;
+  }>;
   cancelChallenge: () => void;
 }
 
@@ -268,14 +273,21 @@ export const useGameStore = create<GameStore>()(
         if (!gameId) return false;
         const result = await api.startChallenge(gameId, regionId, teamId);
         if (!result.success || !result.question) return false;
-        set({ activeChallenge: { regionId, teamId, question: result.question } });
+        set({
+          activeChallenge: {
+            regionId,
+            teamId,
+            question: result.question,
+            isBettingZone: result.bettingZone ?? false,
+          },
+        });
         return true;
       },
 
       submitChallengeAnswer: async (selectedAnswer) => {
         const { gameId, activeChallenge } = get();
         if (!gameId || !activeChallenge) {
-          return { correct: false, pointsAwarded: 0, bonusApplied: false };
+          return { correct: false, pointsAwarded: 0, bonusApplied: false, bettingZone: false, pointsLost: 0 };
         }
         const result = await api.submitCapture(
           gameId,
@@ -290,6 +302,8 @@ export const useGameStore = create<GameStore>()(
           correct: result.correct ?? false,
           pointsAwarded: result.pointsAwarded ?? 0,
           bonusApplied: result.bonusApplied ?? false,
+          bettingZone: result.bettingZone ?? false,
+          pointsLost: result.pointsLost ?? 0,
         };
       },
 

@@ -88,6 +88,7 @@ export interface StartChallengeResult {
   success: boolean;
   reason?: "region_not_found" | "not_eligible" | "no_question_available";
   question?: RpcQuestion;
+  bettingZone?: boolean;
 }
 
 export interface SubmitCaptureResult {
@@ -97,6 +98,8 @@ export interface SubmitCaptureResult {
   reconquest?: boolean;
   pointsAwarded?: number;
   bonusApplied?: boolean;
+  bettingZone?: boolean;
+  pointsLost?: number;
 }
 
 export interface UploadQuestionInput {

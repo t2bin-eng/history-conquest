@@ -38,7 +38,14 @@ export async function fetchFullGame(gameId: string): Promise<Game> {
     supabase.from("games").select("*").eq("id", gameId).single(),
     supabase.from("teams").select("*").eq("game_id", gameId).order("created_at"),
     supabase.from("team_members").select("*").eq("game_id", gameId),
-    supabase.from("regions").select("*").eq("game_id", gameId),
+    // is_betting_zone은 절대 포함하지 않는다 — 도전 시 start_challenge RPC를 통해
+    // 해당 지역을 도전한 팀에게만 그 순간 공개된다 (question_bank.answer와 동일한 원칙).
+    supabase
+      .from("regions")
+      .select(
+        "id,game_id,key,name,difficulty,points,owner_team_id,status,cooldown_until,adjacent_keys,failed_team_ids,svg_path,label_x,label_y"
+      )
+      .eq("game_id", gameId),
     supabase.from("event_logs").select("*").eq("game_id", gameId).order("created_at"),
   ]);
 

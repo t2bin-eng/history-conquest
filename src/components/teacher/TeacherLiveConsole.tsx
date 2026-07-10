@@ -96,6 +96,8 @@ export function TeacherLiveConsole() {
             teams={game.teams}
             viewBoxWidth={MOCK_MAP_VIEWBOX.width}
             viewBoxHeight={MOCK_MAP_VIEWBOX.height}
+            viewBoxMinX={MOCK_MAP_VIEWBOX.minX}
+            viewBoxMinY={MOCK_MAP_VIEWBOX.minY}
             interactive
           />
         </section>
@@ -106,6 +108,8 @@ export function TeacherLiveConsole() {
             teams={game.teams}
             viewBoxWidth={MOCK_MAP_VIEWBOX.width}
             viewBoxHeight={MOCK_MAP_VIEWBOX.height}
+            viewBoxMinX={MOCK_MAP_VIEWBOX.minX}
+            viewBoxMinY={MOCK_MAP_VIEWBOX.minY}
             className="aspect-[5/4]"
           />
 

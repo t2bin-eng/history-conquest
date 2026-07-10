@@ -6,10 +6,20 @@ interface MiniMapProps {
   teams: Team[];
   viewBoxWidth: number;
   viewBoxHeight: number;
+  viewBoxMinX?: number;
+  viewBoxMinY?: number;
   className?: string;
 }
 
-export function MiniMap({ regions, teams, viewBoxWidth, viewBoxHeight, className }: MiniMapProps) {
+export function MiniMap({
+  regions,
+  teams,
+  viewBoxWidth,
+  viewBoxHeight,
+  viewBoxMinX,
+  viewBoxMinY,
+  className,
+}: MiniMapProps) {
   return (
     <div
       className={`overflow-hidden rounded-md border border-neutral-800 bg-neutral-950 ${className ?? ""}`}
@@ -19,6 +29,8 @@ export function MiniMap({ regions, teams, viewBoxWidth, viewBoxHeight, className
         teams={teams}
         viewBoxWidth={viewBoxWidth}
         viewBoxHeight={viewBoxHeight}
+        viewBoxMinX={viewBoxMinX}
+        viewBoxMinY={viewBoxMinY}
         interactive={false}
         showLabels={false}
       />
