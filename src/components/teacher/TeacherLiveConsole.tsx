@@ -32,7 +32,14 @@ export function TeacherLiveConsole() {
   return (
     <div className="flex flex-col gap-4">
       <header className="flex items-center justify-between rounded-lg border border-neutral-800 px-4 py-3">
-        <h1 className="text-lg font-bold text-white">실시간 관제</h1>
+        <h1 className="text-lg font-bold text-white">
+          실시간 관제
+          {game.classNumber !== null && (
+            <span className="ml-2 rounded-full bg-blue-500/20 px-2.5 py-0.5 align-middle text-sm font-semibold text-blue-300">
+              {game.classNumber}반
+            </span>
+          )}
+        </h1>
         <div className="flex items-center gap-3">
           <span className="font-mono text-xl font-bold text-white">
             {formatMMSS(remainingSec)}

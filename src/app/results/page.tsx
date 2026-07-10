@@ -50,7 +50,14 @@ export default function ResultsPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-8 px-6 py-10">
       <header className="text-center">
-        <h1 className="text-2xl font-bold text-white">게임 종료! 최종 결과</h1>
+        <h1 className="text-2xl font-bold text-white">
+          게임 종료! 최종 결과
+          {game.classNumber !== null && (
+            <span className="ml-2 rounded-full bg-blue-500/20 px-2.5 py-0.5 align-middle text-base font-semibold text-blue-300">
+              {game.classNumber}반
+            </span>
+          )}
+        </h1>
         <p className="mt-1 text-sm text-neutral-400">수고하셨습니다. 최종 순위를 확인하세요.</p>
       </header>
 
@@ -150,7 +157,7 @@ export default function ResultsPage() {
       <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
         <button
           type="button"
-          onClick={() => downloadResultsCsv(rankedTeams, eventLogs, gameCode)}
+          onClick={() => downloadResultsCsv(rankedTeams, eventLogs, gameCode, game.classNumber)}
           className="rounded-md border border-neutral-700 px-6 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-neutral-900"
         >
           결과 CSV 다운로드

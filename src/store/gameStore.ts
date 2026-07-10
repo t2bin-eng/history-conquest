@@ -26,6 +26,7 @@ const EMPTY_GAME: Game = {
   isPaused: false,
   pausedAt: null,
   comebackAssist: false,
+  classNumber: null,
   regions: [],
   teams: [],
   eventLogs: [],
@@ -43,7 +44,7 @@ interface GameStore {
   _channel: RealtimeChannel[] | null;
   _pollInterval: ReturnType<typeof setInterval> | null;
 
-  createNewGame: (timeLimitSec: number) => Promise<string>;
+  createNewGame: (timeLimitSec: number, classNumber: number) => Promise<string>;
   joinGameByCode: (code: string) => Promise<boolean>;
   reconnect: () => Promise<void>;
   leaveGame: () => void;
@@ -127,8 +128,8 @@ export const useGameStore = create<GameStore>()(
       _channel: null,
       _pollInterval: null,
 
-      createNewGame: async (timeLimitSec) => {
-        const row = await api.createGame(timeLimitSec);
+      createNewGame: async (timeLimitSec, classNumber) => {
+        const row = await api.createGame(timeLimitSec, classNumber);
         set({ gameId: row.id, gameCode: row.code });
         await connectToGame(row.id, set, get);
         return row.code;

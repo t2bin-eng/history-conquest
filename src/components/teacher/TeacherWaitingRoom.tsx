@@ -17,17 +17,32 @@ export function TeacherWaitingRoom() {
     <div className="flex flex-col gap-6">
       <header className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-bold text-white">교사 대시보드 — 대기실</h1>
+          <h1 className="text-xl font-bold text-white">
+            교사 대시보드 — 대기실
+            {game.classNumber !== null && (
+              <span className="ml-2 rounded-full bg-blue-500/20 px-2.5 py-0.5 align-middle text-sm font-semibold text-blue-300">
+                {game.classNumber}반
+              </span>
+            )}
+          </h1>
           <p className="text-sm text-neutral-400">
             참가 팀 현황을 확인하고 제한시간을 설정한 뒤 퀴즈를 시작하세요.
           </p>
         </div>
-        <Link
-          href="/teacher/questions"
-          className="shrink-0 rounded-md bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-neutral-700"
-        >
-          문제 은행 관리
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          <Link
+            href="/teacher/history"
+            className="rounded-md bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-neutral-700"
+          >
+            반별 결과 기록
+          </Link>
+          <Link
+            href="/teacher/questions"
+            className="rounded-md bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-neutral-700"
+          >
+            문제 은행 관리
+          </Link>
+        </div>
       </header>
 
       <section className="flex flex-col items-center gap-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-4 sm:flex-row sm:justify-center sm:gap-6">

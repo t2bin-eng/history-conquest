@@ -7,7 +7,12 @@ function csvEscape(value: string | number): string {
   return str;
 }
 
-export function downloadResultsCsv(rankedTeams: Team[], eventLogs: EventLog[], gameCode: string | null) {
+export function downloadResultsCsv(
+  rankedTeams: Team[],
+  eventLogs: EventLog[],
+  gameCode: string | null,
+  classNumber: number | null = null
+) {
   const headers = ["순위", "팀", "점수", "점령 지역 수", "정답", "오답", "탈환 성공"];
   const rows = rankedTeams.map((t, i) => {
     const stats = computeTeamStats(t, eventLogs);
@@ -31,8 +36,9 @@ export function downloadResultsCsv(rankedTeams: Team[], eventLogs: EventLog[], g
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   const dateStr = new Date().toISOString().slice(0, 10);
+  const classPart = classNumber !== null ? `${classNumber}반_` : "";
   a.href = url;
-  a.download = `역사정복_결과_${gameCode ?? dateStr}.csv`;
+  a.download = `역사정복_결과_${classPart}${gameCode ?? dateStr}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

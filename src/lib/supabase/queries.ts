@@ -3,6 +3,7 @@ import { mapEventLogRow, mapRegionRow, mapTeamRow } from "./mappers";
 import type {
   BulkInsertQuestionsResult,
   EventLogRow,
+  GameHistoryEntry,
   GameRow,
   QuestionBankSummary,
   RegionRow,
@@ -15,9 +16,9 @@ import type {
 } from "./types";
 import type { Game } from "@/types/game";
 
-export async function createGame(timeLimitSec: number): Promise<GameRow> {
+export async function createGame(timeLimitSec: number, classNumber: number): Promise<GameRow> {
   const { data, error } = await supabase
-    .rpc("create_game", { p_time_limit_sec: timeLimitSec })
+    .rpc("create_game", { p_time_limit_sec: timeLimitSec, p_class_number: classNumber })
     .single();
   if (error) throw error;
   return data as GameRow;
@@ -79,10 +80,41 @@ export async function fetchFullGame(gameId: string): Promise<Game> {
     isPaused: game.is_paused,
     pausedAt: game.paused_at,
     comebackAssist: game.comeback_assist,
+    classNumber: game.class_number,
     regions,
     teams,
     eventLogs: logRows.map(mapEventLogRow),
   };
+}
+
+/** 반별 지난 게임 결과(종료된 게임의 최종 팀 순위)를 최신순으로 조회한다. */
+export async function fetchGameHistory(classNumber: number): Promise<GameHistoryEntry[]> {
+  const { data: games, error: gamesError } = await supabase
+    .from("games")
+    .select("id,code,class_number,ended_at")
+    .eq("class_number", classNumber)
+    .eq("status", "ENDED")
+    .order("ended_at", { ascending: false });
+  if (gamesError) throw gamesError;
+  if (!games || games.length === 0) return [];
+
+  const gameIds = games.map((g) => g.id as string);
+  const { data: teams, error: teamsError } = await supabase
+    .from("teams")
+    .select("id,game_id,name,color,score")
+    .in("game_id", gameIds);
+  if (teamsError) throw teamsError;
+
+  return games.map((g) => ({
+    id: g.id as string,
+    code: g.code as string,
+    classNumber: g.class_number as number | null,
+    endedAt: g.ended_at as string | null,
+    teams: (teams ?? [])
+      .filter((t) => t.game_id === g.id)
+      .map((t) => ({ id: t.id, name: t.name, color: t.color, score: t.score }))
+      .sort((a, b) => b.score - a.score),
+  }));
 }
 
 export async function registerTeam(gameId: string, name: string, color: string): Promise<string> {

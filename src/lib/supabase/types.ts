@@ -8,6 +8,7 @@ export interface GameRow {
   is_paused: boolean;
   paused_at: string | null;
   comeback_assist: boolean;
+  class_number: number | null;
   created_at: string;
 }
 
@@ -119,4 +120,19 @@ export interface BulkInsertQuestionsResult {
 export interface QuestionBankSummary {
   total: number;
   byDifficulty: Partial<Record<"LOW" | "MID" | "HIGH", number>>;
+}
+
+export interface GameHistoryTeam {
+  id: string;
+  name: string;
+  color: string;
+  score: number;
+}
+
+export interface GameHistoryEntry {
+  id: string;
+  code: string;
+  classNumber: number | null;
+  endedAt: string | null;
+  teams: GameHistoryTeam[];
 }

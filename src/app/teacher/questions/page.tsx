@@ -7,8 +7,17 @@ import { bulkInsertQuestions, getQuestionBankSummary } from "@/lib/supabase/quer
 import type { QuestionBankSummary, UploadQuestionInput } from "@/lib/supabase/types";
 import { difficultyLabel } from "@/lib/regionDisplay";
 import { stripQuestionHtmlForPreview } from "@/lib/sanitizeQuestionHtml";
+import { TeacherAuthGate } from "@/components/teacher/TeacherAuthGate";
 
 export default function QuestionBankPage() {
+  return (
+    <TeacherAuthGate>
+      <QuestionBankDashboard />
+    </TeacherAuthGate>
+  );
+}
+
+function QuestionBankDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [summary, setSummary] = useState<QuestionBankSummary | null>(null);
   const [parsed, setParsed] = useState<{ valid: UploadQuestionInput[]; errors: ParseRowError[] } | null>(

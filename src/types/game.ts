@@ -91,6 +91,7 @@ export interface Game {
   isPaused: boolean;
   pausedAt: string | null;
   comebackAssist: boolean;
+  classNumber: number | null;
   regions: Region[];
   teams: Team[];
   eventLogs: EventLog[];
