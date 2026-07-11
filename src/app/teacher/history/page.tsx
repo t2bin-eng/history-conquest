@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { fetchGameHistory } from "@/lib/supabase/queries";
+import { deleteGame, deleteGamesByClass, fetchGameHistory } from "@/lib/supabase/queries";
 import type { GameHistoryEntry } from "@/lib/supabase/types";
 import { TeacherAuthGate } from "@/components/teacher/TeacherAuthGate";
+import { downloadGameHistoryCsv } from "@/lib/exportHistoryCsv";
 
 const CLASS_NUMBERS = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -21,6 +22,8 @@ function HistoryDashboard() {
   const [entries, setEntries] = useState<GameHistoryEntry[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +46,40 @@ function HistoryDashboard() {
     };
   }, [classNumber]);
 
+  const handleDelete = async (gameId: string, code: string) => {
+    if (!window.confirm(`게임 코드 ${code} 기록을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    setPendingId(gameId);
+    try {
+      await deleteGame(gameId);
+      setEntries((prev) => (prev ? prev.filter((e) => e.id !== gameId) : prev));
+    } catch {
+      window.alert("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!entries || entries.length === 0) return;
+    if (
+      !window.confirm(
+        `${classNumber}반의 게임 기록 ${entries.length}개를 모두 삭제할까요? 되돌릴 수 없습니다.`
+      )
+    )
+      return;
+    setIsClearing(true);
+    try {
+      await deleteGamesByClass(classNumber);
+      setEntries([]);
+    } catch {
+      window.alert("초기화 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const hasEntries = !isLoading && !error && entries !== null && entries.length > 0;
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-6 py-8">
       <header className="flex items-center justify-between">
@@ -55,20 +92,42 @@ function HistoryDashboard() {
         </Link>
       </header>
 
-      <label className="flex items-center gap-2 text-sm font-medium text-neutral-300">
-        반 선택
-        <select
-          value={classNumber}
-          onChange={(e) => setClassNumber(Number(e.target.value))}
-          className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
-        >
-          {CLASS_NUMBERS.map((n) => (
-            <option key={n} value={n}>
-              {n}반
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-2 text-sm font-medium text-neutral-300">
+          반 선택
+          <select
+            value={classNumber}
+            onChange={(e) => setClassNumber(Number(e.target.value))}
+            className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+          >
+            {CLASS_NUMBERS.map((n) => (
+              <option key={n} value={n}>
+                {n}반
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {hasEntries && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => downloadGameHistoryCsv(entries, classNumber)}
+              className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-neutral-900"
+            >
+              결과 CSV 내보내기
+            </button>
+            <button
+              type="button"
+              disabled={isClearing}
+              onClick={handleClearAll}
+              className="rounded-md bg-red-900/40 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isClearing ? "삭제 중..." : `${classNumber}반 전체 초기화`}
+            </button>
+          </div>
+        )}
+      </div>
 
       {isLoading && <p className="text-sm text-neutral-500">불러오는 중...</p>}
 
@@ -84,20 +143,30 @@ function HistoryDashboard() {
         </p>
       )}
 
-      {!isLoading && !error && entries !== null && entries.length > 0 && (
+      {hasEntries && (
         <ul className="flex flex-col gap-4">
           {entries.map((entry) => (
             <li key={entry.id} className="rounded-lg border border-neutral-800 bg-neutral-950 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <span className="font-mono text-xs text-neutral-500">{entry.code}</span>
-                <span className="text-xs text-neutral-500">
-                  {entry.endedAt
-                    ? new Date(entry.endedAt).toLocaleString("ko-KR", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })
-                    : ""}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-neutral-500">
+                    {entry.endedAt
+                      ? new Date(entry.endedAt).toLocaleString("ko-KR", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                      : ""}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={pendingId === entry.id}
+                    onClick={() => handleDelete(entry.id, entry.code)}
+                    className="text-xs text-neutral-500 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {pendingId === entry.id ? "삭제 중..." : "삭제"}
+                  </button>
+                </div>
               </div>
               <ul className="flex flex-col gap-1.5">
                 {entry.teams.map((team, i) => (

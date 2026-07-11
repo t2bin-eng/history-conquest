@@ -117,6 +117,16 @@ export async function fetchGameHistory(classNumber: number): Promise<GameHistory
   }));
 }
 
+export async function deleteGame(gameId: string): Promise<void> {
+  const { error } = await supabase.rpc("delete_game", { p_game_id: gameId });
+  if (error) throw error;
+}
+
+export async function deleteGamesByClass(classNumber: number): Promise<void> {
+  const { error } = await supabase.rpc("delete_games_by_class", { p_class_number: classNumber });
+  if (error) throw error;
+}
+
 export async function registerTeam(gameId: string, name: string, color: string): Promise<string> {
   const { data, error } = await supabase
     .from("teams")
