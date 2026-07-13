@@ -54,7 +54,7 @@ export function QuizModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
       <div
-        className={`w-full max-w-2xl rounded-xl bg-neutral-900 p-8 shadow-2xl ring-1 ${
+        className={`flex max-h-[90vh] w-full max-w-2xl flex-col overflow-y-auto rounded-xl bg-neutral-900 p-6 shadow-2xl ring-1 ${
           isBettingZone ? "ring-2 ring-amber-400" : "ring-neutral-800"
         } ${urgent ? "animate-[shake_0.3s_ease-in-out_infinite]" : ""}`}
         style={
@@ -86,7 +86,7 @@ export function QuizModal({
         </div>
 
         <div
-          className="mb-6 rounded-lg bg-white p-6 text-3xl font-medium leading-relaxed text-neutral-900 [&_*]:max-w-full"
+          className="mb-4 rounded-lg bg-white p-4 text-xl font-medium leading-relaxed text-neutral-900 [&_*]:max-w-full"
           dangerouslySetInnerHTML={{ __html: sanitizedText }}
         />
 
