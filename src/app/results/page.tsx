@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import confetti from "canvas-confetti";
 import { useGameStore } from "@/store/gameStore";
+import { fetchEventLogs } from "@/lib/supabase/queries";
+import type { EventLog } from "@/types/game";
 import { RegionMap } from "@/components/map/RegionMap";
 import { MOCK_MAP_VIEWBOX } from "@/data/mockRegions";
 import { Podium } from "@/components/results/Podium";
@@ -14,7 +16,21 @@ import { downloadResultsCsv } from "@/lib/exportResultsCsv";
 export default function ResultsPage() {
   const router = useRouter();
   const { game, gameCode, leaveGame } = useGameStore();
-  const { teams, regions, eventLogs } = game;
+  const { teams, regions } = game;
+
+  // 실시간 동기화용 상태는 트래픽 절감을 위해 최근 이벤트만 유지하므로,
+  // 정확한 팀별 통계(정답/오답 수)를 위해 게임 전체 로그를 별도로 받아온다.
+  const [eventLogs, setEventLogs] = useState<EventLog[]>(game.eventLogs);
+  useEffect(() => {
+    if (!game.id) return;
+    let cancelled = false;
+    fetchEventLogs(game.id).then((logs) => {
+      if (!cancelled) setEventLogs(logs);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [game.id]);
 
   const handleLeaveGame = () => {
     leaveGame();

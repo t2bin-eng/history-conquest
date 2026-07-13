@@ -1,5 +1,5 @@
 import { supabase } from "./client";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 const WATCHED_TABLES: { table: string; filter: (gameId: string) => string }[] = [
   { table: "games", filter: (gameId) => `id=eq.${gameId}` },
@@ -11,9 +11,15 @@ const WATCHED_TABLES: { table: string; filter: (gameId: string) => string }[] = 
 
 export type ConnectionStatus = "connected" | "reconnecting" | "disconnected";
 
+export type TableChangePayload = RealtimePostgresChangesPayload<Record<string, unknown>>;
+export type TableChangeHandler = (table: string, payload: TableChangePayload) => void;
+
 /** 게임에 속한 games/teams/team_members/regions/event_logs 변경을 모두 구독하고,
- * 변경이 있을 때마다 onChange를 호출한다. 상태 병합 대신 전체 재조회(fetchFullGame)로
- * 단순하고 견고하게 동기화한다 (학급 단위 소규모 트래픽에 적합).
+ * 변경이 있을 때마다 어떤 테이블에서 어떤 row가 바뀌었는지 onChange로 전달한다.
+ * 호출부(gameStore)는 이 payload를 클라이언트에 보관 중인 raw 캐시에 반영해
+ * 화면 상태를 다시 계산한다 — 변경 1건마다 서버에 전체 재조회를 요청하지
+ * 않는다. 전체 재조회는 최초 접속/재접속 시, 그리고 Realtime이 놓친 변경을
+ * 보정하는 주기적 폴백 폴링에서만 일어난다(gameStore 참고).
  *
  * 테이블마다 별도 채널을 사용한다: 하나의 채널에 여러 테이블의
  * postgres_changes 바인딩을 체이닝하면 이벤트가 전달되지 않는 문제가
@@ -24,7 +30,7 @@ export type ConnectionStatus = "connected" | "reconnecting" | "disconnected";
  * 않도록 배너로 안내하기 위함이다. */
 export function subscribeToGame(
   gameId: string,
-  onChange: () => void,
+  onChange: TableChangeHandler,
   onStatusChange?: (status: ConnectionStatus) => void
 ): RealtimeChannel[] {
   const statuses = new Map<string, ConnectionStatus>();
@@ -44,7 +50,7 @@ export function subscribeToGame(
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table, filter: filter(gameId) },
-        onChange
+        (payload) => onChange(table, payload)
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") statuses.set(table, "connected");

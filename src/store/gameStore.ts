@@ -2,13 +2,102 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Game, Team } from "@/types/game";
-import type { RpcQuestion } from "@/lib/supabase/types";
+import type {
+  EventLogRow,
+  GameRow,
+  RegionRow,
+  RpcQuestion,
+  TeamMemberRow,
+  TeamRow,
+} from "@/lib/supabase/types";
 import * as api from "@/lib/supabase/queries";
+import type { RawGameState } from "@/lib/supabase/queries";
 import {
   subscribeToGame,
   unsubscribeFromGame,
   type ConnectionStatus,
+  type TableChangePayload,
 } from "@/lib/supabase/realtime";
+
+function upsertById<T extends { id: string }>(rows: T[], row: T): T[] {
+  const idx = rows.findIndex((r) => r.id === row.id);
+  if (idx === -1) return [...rows, row];
+  const next = rows.slice();
+  next[idx] = row;
+  return next;
+}
+
+function removeById<T extends { id: string }>(rows: T[], id: string): T[] {
+  return rows.filter((r) => r.id !== id);
+}
+
+// 실시간 화면에서는 최근 이벤트 피드만 필요하므로, fetchGameRaw의 초기 조회와
+// 동일한 상한으로 클라이언트 쪽 캐시도 계속 잘라낸다(결과 화면의 전체 통계는
+// fetchEventLogs로 별도 조회하므로 여기서 잘려도 무방하다).
+const LIVE_EVENT_LOG_CAP = 300;
+
+/** 실시간 postgres_changes 이벤트 1건을 raw 캐시에 반영해 새 raw 상태를
+ * 만든다. 서버에 재조회를 요청하지 않고 클라이언트에서 바로 계산하므로,
+ * 하나의 액션이 여러 테이블(예: submit_capture가 regions+teams+event_logs를
+ * 동시에 바꾸는 경우)을 건드려도 접속 중인 각 클라이언트는 테이블당 1번씩
+ * 가벼운 로컬 병합만 하면 된다. */
+function applyRealtimeChange(
+  raw: RawGameState,
+  table: string,
+  payload: TableChangePayload
+): RawGameState {
+  const isDelete = payload.eventType === "DELETE";
+
+  switch (table) {
+    case "games": {
+      if (isDelete) return raw;
+      return { ...raw, gameRow: payload.new as unknown as GameRow };
+    }
+    case "teams": {
+      if (isDelete) {
+        const old = payload.old as unknown as TeamRow;
+        return { ...raw, teamRows: removeById(raw.teamRows, old.id) };
+      }
+      return { ...raw, teamRows: upsertById(raw.teamRows, payload.new as unknown as TeamRow) };
+    }
+    case "team_members": {
+      if (isDelete) {
+        const old = payload.old as unknown as TeamMemberRow;
+        return { ...raw, memberRows: removeById(raw.memberRows, old.id) };
+      }
+      return {
+        ...raw,
+        memberRows: upsertById(raw.memberRows, payload.new as unknown as TeamMemberRow),
+      };
+    }
+    case "regions": {
+      if (isDelete) {
+        const old = payload.old as unknown as RegionRow;
+        return { ...raw, regionRows: removeById(raw.regionRows, old.id) };
+      }
+      return {
+        ...raw,
+        regionRows: upsertById(raw.regionRows, payload.new as unknown as RegionRow),
+      };
+    }
+    case "event_logs": {
+      if (isDelete) {
+        const old = payload.old as unknown as EventLogRow;
+        return { ...raw, logRows: removeById(raw.logRows, old.id) };
+      }
+      let logRows = upsertById(raw.logRows, payload.new as unknown as EventLogRow);
+      if (logRows.length > LIVE_EVENT_LOG_CAP) {
+        logRows = logRows
+          .slice()
+          .sort((a, b) => a.created_at.localeCompare(b.created_at))
+          .slice(-LIVE_EVENT_LOG_CAP);
+      }
+      return { ...raw, logRows };
+    }
+    default:
+      return raw;
+  }
+}
 
 export interface ActiveChallenge {
   regionId: string;
@@ -43,6 +132,7 @@ interface GameStore {
   isLoading: boolean;
   _channel: RealtimeChannel[] | null;
   _pollInterval: ReturnType<typeof setInterval> | null;
+  _raw: RawGameState | null;
 
   createNewGame: (timeLimitSec: number, classNumber: number) => Promise<string>;
   joinGameByCode: (code: string) => Promise<boolean>;
@@ -80,7 +170,11 @@ interface GameStore {
 // "연결됨" 상태를 유지한 채 조용히 업데이트를 놓치는 경우가 있다 (특히 교사가
 // 게임을 강제 종료했는데 학생 화면이 넘어가지 않는 문제로 나타남). Realtime을
 // 믿기만 하지 않고, 주기적으로 게임 상태를 직접 다시 받아와 그 간극을 메운다.
-const POLL_INTERVAL_MS = 5000;
+// 이제 실시간 변경은 로컬 병합으로 처리되어 이 폴링이 유일한 전체 재조회
+// 경로이므로, 매 tick마다 접속 중인 모든 클라이언트가 서버에 전체 조회를
+// 요청한다는 점을 감안해 너무 잦지 않게(20초) 유지한다 — 그래도 걸리는
+// 간극은 이 폴백이 곧 메운다.
+const POLL_INTERVAL_MS = 20000;
 
 async function connectToGame(
   gameId: string,
@@ -93,11 +187,16 @@ async function connectToGame(
   if (prevPoll) clearInterval(prevPoll);
 
   set({ isLoading: true });
-  const game = await api.fetchFullGame(gameId);
+  const raw = await api.fetchGameRaw(gameId);
   const channel = subscribeToGame(
     gameId,
-    () => {
-      get().refreshGame();
+    (table, payload) => {
+      // 변경 1건마다 서버에 재조회하지 않고, 로컬 raw 캐시에 반영한 뒤
+      // 클라이언트에서 즉시 다시 계산한다(네트워크 왕복 없음).
+      const current = get()._raw;
+      if (!current) return;
+      const nextRaw = applyRealtimeChange(current, table, payload);
+      set({ _raw: nextRaw, game: api.composeGame(nextRaw) });
     },
     (status) => set({ connectionStatus: status, isConnected: status === "connected" })
   );
@@ -105,7 +204,8 @@ async function connectToGame(
     get().refreshGame();
   }, POLL_INTERVAL_MS);
   set({
-    game,
+    game: api.composeGame(raw),
+    _raw: raw,
     isConnected: true,
     connectionStatus: "connected",
     isLoading: false,
@@ -127,6 +227,7 @@ export const useGameStore = create<GameStore>()(
       isLoading: false,
       _channel: null,
       _pollInterval: null,
+      _raw: null,
 
       createNewGame: async (timeLimitSec, classNumber) => {
         const row = await api.createGame(timeLimitSec, classNumber);
@@ -164,14 +265,15 @@ export const useGameStore = create<GameStore>()(
           connectionStatus: "disconnected",
           _channel: null,
           _pollInterval: null,
+          _raw: null,
         });
       },
 
       refreshGame: async () => {
         const { gameId } = get();
         if (!gameId) return;
-        const game = await api.fetchFullGame(gameId);
-        set({ game });
+        const raw = await api.fetchGameRaw(gameId);
+        set({ game: api.composeGame(raw), _raw: raw });
       },
 
       setMyTeam: (teamId) => set({ myTeamId: teamId }),

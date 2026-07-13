@@ -14,7 +14,51 @@ import type {
   TeamRow,
   UploadQuestionInput,
 } from "./types";
-import type { Game } from "@/types/game";
+import type { EventLog, Game } from "@/types/game";
+
+/** 실시간 동기화(연결/재연결 시 초기 전체 조회)에서 가져오는 이벤트 로그
+ * 개수 상한. 게임이 길어져도 매 재조회 비용이 무한정 커지지 않도록 최근
+ * 것만 유지한다 — 화면에 필요한 건 최근 이벤트 피드뿐이고, 결과 화면의
+ * 정확한 누적 통계는 fetchEventLogs로 전체를 따로 받아온다. */
+const LIVE_EVENT_LOG_LIMIT = 300;
+
+export interface RawGameState {
+  gameRow: GameRow;
+  teamRows: TeamRow[];
+  memberRows: TeamMemberRow[];
+  regionRows: RegionRow[];
+  logRows: EventLogRow[];
+}
+
+/** raw 테이블 row들로부터 화면에서 쓰는 Game 객체를 조립한다. 최초 접속 시의
+ * 전체 조회뿐 아니라, 실시간 변경 이벤트를 raw 캐시에 반영한 뒤 다시
+ * 계산할 때도 재사용한다(네트워크 재조회 없이 클라이언트에서 즉시 계산). */
+export function composeGame(raw: RawGameState): Game {
+  const { gameRow, teamRows, memberRows, regionRows, logRows } = raw;
+  const regions = regionRows.map(mapRegionRow);
+  const teams = teamRows.map((row) =>
+    mapTeamRow(
+      row,
+      memberRows,
+      regionRows.filter((r) => r.owner_team_id === row.id).map((r) => r.key)
+    )
+  );
+
+  return {
+    id: gameRow.id,
+    status: gameRow.status,
+    timeLimitSec: gameRow.time_limit_sec,
+    startedAt: gameRow.started_at,
+    endedAt: gameRow.ended_at,
+    isPaused: gameRow.is_paused,
+    pausedAt: gameRow.paused_at,
+    comebackAssist: gameRow.comeback_assist,
+    classNumber: gameRow.class_number,
+    regions,
+    teams,
+    eventLogs: logRows.map(mapEventLogRow),
+  };
+}
 
 export async function createGame(timeLimitSec: number, classNumber: number): Promise<GameRow> {
   const { data, error } = await supabase
@@ -34,7 +78,11 @@ export async function getGameByCode(code: string): Promise<GameRow | null> {
   return data as GameRow | null;
 }
 
-export async function fetchFullGame(gameId: string): Promise<Game> {
+/** 게임을 구성하는 raw row들을 조회한다. games/teams/team_members/regions는
+ * 소규모라 전체를 받아오지만, event_logs는 게임이 길어질수록 계속 쌓이므로
+ * 최근 LIVE_EVENT_LOG_LIMIT개로 제한한다 — 접속/재접속 시 매번 전체 로그를
+ * 다시 받아오면 게임이 길어질수록 재조회 비용이 커지는 문제가 있었다. */
+export async function fetchGameRaw(gameId: string): Promise<RawGameState> {
   const [gameRes, teamsRes, membersRes, regionsRes, logsRes] = await Promise.all([
     supabase.from("games").select("*").eq("id", gameId).single(),
     supabase.from("teams").select("*").eq("game_id", gameId).order("created_at"),
@@ -47,7 +95,12 @@ export async function fetchFullGame(gameId: string): Promise<Game> {
         "id,game_id,key,name,difficulty,points,owner_team_id,status,cooldown_until,adjacent_keys,failed_team_ids,svg_path,label_x,label_y"
       )
       .eq("game_id", gameId),
-    supabase.from("event_logs").select("*").eq("game_id", gameId).order("created_at"),
+    supabase
+      .from("event_logs")
+      .select("*")
+      .eq("game_id", gameId)
+      .order("created_at", { ascending: false })
+      .limit(LIVE_EVENT_LOG_LIMIT),
   ]);
 
   if (gameRes.error) throw gameRes.error;
@@ -56,35 +109,32 @@ export async function fetchFullGame(gameId: string): Promise<Game> {
   if (regionsRes.error) throw regionsRes.error;
   if (logsRes.error) throw logsRes.error;
 
-  const game = gameRes.data as GameRow;
-  const teamRows = teamsRes.data as TeamRow[];
-  const memberRows = membersRes.data as TeamMemberRow[];
-  const regionRows = regionsRes.data as RegionRow[];
-  const logRows = logsRes.data as EventLogRow[];
-
-  const regions = regionRows.map(mapRegionRow);
-  const teams = teamRows.map((row) =>
-    mapTeamRow(
-      row,
-      memberRows,
-      regionRows.filter((r) => r.owner_team_id === row.id).map((r) => r.key)
-    )
-  );
-
   return {
-    id: game.id,
-    status: game.status,
-    timeLimitSec: game.time_limit_sec,
-    startedAt: game.started_at,
-    endedAt: game.ended_at,
-    isPaused: game.is_paused,
-    pausedAt: game.paused_at,
-    comebackAssist: game.comeback_assist,
-    classNumber: game.class_number,
-    regions,
-    teams,
-    eventLogs: logRows.map(mapEventLogRow),
+    gameRow: gameRes.data as GameRow,
+    teamRows: teamsRes.data as TeamRow[],
+    memberRows: membersRes.data as TeamMemberRow[],
+    regionRows: regionsRes.data as RegionRow[],
+    // 최신순으로 LIMIT을 건 뒤 화면 표시 순서(오래된 것부터)로 되돌린다.
+    logRows: (logsRes.data as EventLogRow[]).slice().reverse(),
   };
+}
+
+export async function fetchFullGame(gameId: string): Promise<Game> {
+  return composeGame(await fetchGameRaw(gameId));
+}
+
+/** 결과 화면의 팀별 정답/오답/재정복 통계와 CSV 내보내기는 게임 전체 기간의
+ * 정확한 집계가 필요하다. 실시간 동기화용 raw 캐시는 트래픽 절감을 위해
+ * 최근 이벤트만 유지하므로, 그 값을 쓰지 않고 이 함수로 전체 로그를 별도
+ * 조회한다(게임 종료 후 결과 화면 진입 시 1회만 호출됨). */
+export async function fetchEventLogs(gameId: string): Promise<EventLog[]> {
+  const { data, error } = await supabase
+    .from("event_logs")
+    .select("*")
+    .eq("game_id", gameId)
+    .order("created_at");
+  if (error) throw error;
+  return (data as EventLogRow[]).map(mapEventLogRow);
 }
 
 /** 반별 지난 게임 결과(종료된 게임의 최종 팀 순위)를 최신순으로 조회한다. */
