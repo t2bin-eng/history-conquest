@@ -44,7 +44,7 @@ export async function fetchFullGame(gameId: string): Promise<Game> {
     supabase
       .from("regions")
       .select(
-        "id,game_id,key,name,difficulty,points,owner_team_id,status,cooldown_until,adjacent_keys,failed_team_ids,svg_path,label_x,label_y"
+        "id,game_id,key,name,difficulty,points,owner_team_id,status,cooldown_until,adjacent_keys,failed_team_ids,failed_until,svg_path,label_x,label_y"
       )
       .eq("game_id", gameId),
     supabase.from("event_logs").select("*").eq("game_id", gameId).order("created_at"),
