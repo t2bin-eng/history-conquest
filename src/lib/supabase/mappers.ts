@@ -12,6 +12,7 @@ export function mapRegionRow(row: RegionRow): Region {
     cooldownUntil: row.cooldown_until,
     adjacentRegionIds: row.adjacent_keys,
     failedTeamIds: row.failed_team_ids,
+    failedUntil: row.failed_until ?? {},
     svgPath: row.svg_path,
     labelPosition: { x: Number(row.label_x), y: Number(row.label_y) },
   };
