@@ -155,13 +155,17 @@ interface GameStore {
   pauseGame: () => Promise<void>;
   resumeGame: () => Promise<void>;
 
-  startChallenge: (regionId: string, teamId: string) => Promise<boolean>;
+  startChallenge: (
+    regionId: string,
+    teamId: string
+  ) => Promise<{ started: boolean; retryAt: string | null }>;
   submitChallengeAnswer: (selectedAnswer: string) => Promise<{
     correct: boolean;
     pointsAwarded: number;
     bonusApplied: boolean;
     bettingZone: boolean;
     pointsLost: number;
+    retryAt: string | null;
   }>;
   cancelChallenge: () => void;
 }
@@ -373,9 +377,11 @@ export const useGameStore = create<GameStore>()(
 
       startChallenge: async (regionId, teamId) => {
         const { gameId } = get();
-        if (!gameId) return false;
+        if (!gameId) return { started: false, retryAt: null };
         const result = await api.startChallenge(gameId, regionId, teamId);
-        if (!result.success || !result.question) return false;
+        if (!result.success || !result.question) {
+          return { started: false, retryAt: result.retryAt ?? null };
+        }
         set({
           activeChallenge: {
             regionId,
@@ -384,13 +390,20 @@ export const useGameStore = create<GameStore>()(
             isBettingZone: result.bettingZone ?? false,
           },
         });
-        return true;
+        return { started: true, retryAt: null };
       },
 
       submitChallengeAnswer: async (selectedAnswer) => {
         const { gameId, activeChallenge } = get();
         if (!gameId || !activeChallenge) {
-          return { correct: false, pointsAwarded: 0, bonusApplied: false, bettingZone: false, pointsLost: 0 };
+          return {
+            correct: false,
+            pointsAwarded: 0,
+            bonusApplied: false,
+            bettingZone: false,
+            pointsLost: 0,
+            retryAt: null,
+          };
         }
         const result = await api.submitCapture(
           gameId,
@@ -407,6 +420,7 @@ export const useGameStore = create<GameStore>()(
           bonusApplied: result.bonusApplied ?? false,
           bettingZone: result.bettingZone ?? false,
           pointsLost: result.pointsLost ?? 0,
+          retryAt: result.retryAt ?? null,
         };
       },
 

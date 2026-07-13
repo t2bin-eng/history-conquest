@@ -14,5 +14,9 @@ export function canChallengeRegion(region: Region, teamId: string, now: Date = n
     return true;
   }
 
-  return !region.failedTeamIds.includes(teamId);
+  const retryAt = region.failedUntil[teamId];
+  if (retryAt && now.getTime() < new Date(retryAt).getTime()) {
+    return false;
+  }
+  return true;
 }

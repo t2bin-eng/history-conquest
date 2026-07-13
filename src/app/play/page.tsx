@@ -13,6 +13,14 @@ import { eventToMessage } from "@/lib/eventMessage";
 import { formatMMSS } from "@/lib/time";
 import { useRemainingSeconds } from "@/hooks/useRemainingSeconds";
 
+function retryToastMessage(retryAt: string): string {
+  const diffSec = Math.max(1, Math.ceil((new Date(retryAt).getTime() - Date.now()) / 1000));
+  if (diffSec >= 60) {
+    return "재도전 대기 중입니다. 1분 후 재도전 가능";
+  }
+  return `재도전 대기 중입니다. ${diffSec}초 후 재도전 가능`;
+}
+
 export default function PlayPage() {
   const router = useRouter();
   const {
@@ -35,6 +43,7 @@ export default function PlayPage() {
     bonusApplied: boolean;
     bettingZone: boolean;
     pointsLost: number;
+    retryAt: string | null;
   } | null>(null);
 
   const remainingSec = useRemainingSeconds(game);
@@ -102,17 +111,17 @@ export default function PlayPage() {
     .find((e) => e.type === "CAPTURE" || e.type === "RECONQUEST" || e.type === "SURROUND");
 
   const handleRegionClick = async (regionId: string) => {
-    const started = await startChallenge(regionId, myTeam.id);
+    const { started, retryAt } = await startChallenge(regionId, myTeam.id);
     if (!started) {
-      setToast("지금은 도전할 수 없는 지역입니다.");
-      window.setTimeout(() => setToast(null), 2000);
+      setToast(retryAt ? retryToastMessage(retryAt) : "지금은 도전할 수 없는 지역입니다.");
+      window.setTimeout(() => setToast(null), 2500);
     }
   };
 
   const handleAnswer = async (choice: string) => {
     if (!activeChallenge) return;
     const region = game.regions.find((r) => r.id === activeChallenge.regionId);
-    const { correct, pointsAwarded, bonusApplied, bettingZone, pointsLost } =
+    const { correct, pointsAwarded, bonusApplied, bettingZone, pointsLost, retryAt } =
       await submitChallengeAnswer(choice);
     setFeedback({
       correct,
@@ -121,6 +130,7 @@ export default function PlayPage() {
       bonusApplied,
       bettingZone,
       pointsLost,
+      retryAt,
     });
     window.setTimeout(() => setFeedback(null), 1800);
   };
@@ -128,7 +138,7 @@ export default function PlayPage() {
   const handleTimeUp = async () => {
     if (!activeChallenge) return;
     const region = game.regions.find((r) => r.id === activeChallenge.regionId);
-    const { bettingZone, pointsLost } = await submitChallengeAnswer("__TIMEOUT__");
+    const { bettingZone, pointsLost, retryAt } = await submitChallengeAnswer("__TIMEOUT__");
     setFeedback({
       correct: false,
       regionName: region?.name ?? "",
@@ -136,6 +146,7 @@ export default function PlayPage() {
       bonusApplied: false,
       bettingZone,
       pointsLost,
+      retryAt,
     });
     window.setTimeout(() => setFeedback(null), 1800);
   };
@@ -225,7 +236,7 @@ export default function PlayPage() {
                 feedback.bettingZone && feedback.pointsLost > 0
                   ? ` — 베팅존 감점 -${feedback.pointsLost}점`
                   : ""
-              }`}
+              } · 1분 후 재도전 가능`}
         </div>
       )}
 

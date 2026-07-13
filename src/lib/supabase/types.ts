@@ -45,6 +45,7 @@ export interface RegionRow {
   cooldown_until: string | null;
   adjacent_keys: string[];
   failed_team_ids: string[];
+  failed_until: Record<string, string>;
   svg_path: string;
   label_x: number;
   label_y: number;
@@ -90,6 +91,7 @@ export interface StartChallengeResult {
   reason?: "region_not_found" | "not_eligible" | "no_question_available";
   question?: RpcQuestion;
   bettingZone?: boolean;
+  retryAt?: string | null;
 }
 
 export interface SubmitCaptureResult {
@@ -101,6 +103,7 @@ export interface SubmitCaptureResult {
   bonusApplied?: boolean;
   bettingZone?: boolean;
   pointsLost?: number;
+  retryAt?: string | null;
 }
 
 export interface UploadQuestionInput {

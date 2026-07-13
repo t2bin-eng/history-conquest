@@ -92,7 +92,7 @@ export async function fetchGameRaw(gameId: string): Promise<RawGameState> {
     supabase
       .from("regions")
       .select(
-        "id,game_id,key,name,difficulty,points,owner_team_id,status,cooldown_until,adjacent_keys,failed_team_ids,svg_path,label_x,label_y"
+        "id,game_id,key,name,difficulty,points,owner_team_id,status,cooldown_until,adjacent_keys,failed_team_ids,failed_until,svg_path,label_x,label_y"
       )
       .eq("game_id", gameId),
     supabase

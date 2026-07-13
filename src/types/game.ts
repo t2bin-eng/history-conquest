@@ -54,6 +54,8 @@ export interface Region {
   cooldownUntil: string | null;
   adjacentRegionIds: string[];
   failedTeamIds: string[];
+  /** 오답으로 도전 실패한 팀별 재도전 가능 시각 (team_id -> ISO timestamp) */
+  failedUntil: Record<string, string>;
   /** SVG path data for map rendering */
   svgPath: string;
   /** label position for name/flag placement */
