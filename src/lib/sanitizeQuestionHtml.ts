@@ -6,8 +6,8 @@ import DOMPurify from "dompurify";
  * 양식과 호환하기 위해 허용하되, 그 외 위험한 태그/속성은 모두 걸러낸다. */
 export function sanitizeQuestionHtml(html: string): string {
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ["div", "p", "span", "b", "strong", "em", "i", "u", "br", "ul", "ol", "li"],
-    ALLOWED_ATTR: ["style", "class"],
+    ALLOWED_TAGS: ["div", "p", "span", "b", "strong", "em", "i", "u", "br", "ul", "ol", "li", "img"],
+    ALLOWED_ATTR: ["style", "class", "src", "alt"],
     ALLOW_DATA_ATTR: false,
   });
 }
