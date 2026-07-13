@@ -54,7 +54,7 @@ export function QuizModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
       <div
-        className={`w-full max-w-md rounded-xl bg-neutral-900 p-6 shadow-2xl ring-1 ${
+        className={`w-full max-w-2xl rounded-xl bg-neutral-900 p-8 shadow-2xl ring-1 ${
           isBettingZone ? "ring-2 ring-amber-400" : "ring-neutral-800"
         } ${urgent ? "animate-[shake_0.3s_ease-in-out_infinite]" : ""}`}
         style={
@@ -86,18 +86,18 @@ export function QuizModal({
         </div>
 
         <div
-          className="mb-5 rounded-lg bg-white p-4 text-sm font-medium leading-relaxed text-neutral-900 [&_*]:max-w-full"
+          className="mb-6 rounded-lg bg-white p-6 text-3xl font-medium leading-relaxed text-neutral-900 [&_*]:max-w-full"
           dangerouslySetInnerHTML={{ __html: sanitizedText }}
         />
 
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-1 gap-3">
           {question.choices.map((choice) => (
             <button
               key={choice}
               type="button"
               disabled={answered}
               onClick={() => handleChoiceClick(choice)}
-              className="rounded-md border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-left text-sm text-neutral-100 hover:border-blue-500 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-neutral-700 bg-neutral-800 px-6 py-4 text-left text-2xl text-neutral-100 hover:border-blue-500 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {choice}
             </button>
