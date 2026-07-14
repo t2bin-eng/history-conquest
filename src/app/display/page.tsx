@@ -7,12 +7,18 @@ import { MOCK_MAP_VIEWBOX } from "@/data/mockRegions";
 import { eventToMessage } from "@/lib/eventMessage";
 import { formatMMSS } from "@/lib/time";
 import { useRemainingSeconds } from "@/hooks/useRemainingSeconds";
+import { computeCompositeRanks } from "@/lib/teamRanking";
 
 /** 프로젝터/TV용 전광판 화면. 조작 버튼 없이 지도와 순위만 크게 보여준다. */
 export default function DisplayPage() {
   const { game, gameId, gameCode, isLoading } = useGameStore();
   const remainingSec = useRemainingSeconds(game);
-  const rankedTeams = [...game.teams].sort((a, b) => b.score - a.score);
+  // 종합 순위 = 땅 점수 순위와 보정 정답률 순위의 평균 — 관제 화면과 동일한 기준.
+  const compositeRanks = computeCompositeRanks(game.teams, game.eventLogs);
+  const rankOf = new Map(compositeRanks.map((r) => [r.teamId, r.compositeRank]));
+  const rankedTeams = [...game.teams].sort(
+    (a, b) => (rankOf.get(a.id) ?? Infinity) - (rankOf.get(b.id) ?? Infinity)
+  );
 
   const latestNews = [...game.eventLogs]
     .reverse()
@@ -81,7 +87,6 @@ export default function DisplayPage() {
               <span className="w-6 text-lg font-bold text-neutral-500">{i + 1}</span>
               <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: t.color }} />
               <span className="flex-1 truncate text-lg font-semibold text-white">{t.name}</span>
-              <span className="text-lg font-bold text-white">{t.score}점</span>
             </div>
           ))}
         </section>

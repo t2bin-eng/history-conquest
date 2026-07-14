@@ -9,13 +9,20 @@ import { difficultyLabel } from "@/lib/regionDisplay";
 import { eventToMessage } from "@/lib/eventMessage";
 import { formatMMSS } from "@/lib/time";
 import { useRemainingSeconds } from "@/hooks/useRemainingSeconds";
+import { computeCompositeRanks } from "@/lib/teamRanking";
 
 export function TeacherLiveConsole() {
   const { game, pauseGame, resumeGame, endGame } = useGameStore();
   const remainingSec = useRemainingSeconds(game);
 
   const teamById = new Map(game.teams.map((t) => [t.id, t]));
-  const rankedTeams = [...game.teams].sort((a, b) => b.score - a.score);
+  // 종합 순위 = 땅 점수 순위와 보정 정답률 순위의 평균 — 땅만 넓게 차지한
+  // 팀이 아니라 문제를 실제로 잘 맞히는 팀도 함께 반영되도록 한다.
+  const compositeRanks = computeCompositeRanks(game.teams, game.eventLogs);
+  const rankOf = new Map(compositeRanks.map((r) => [r.teamId, r.compositeRank]));
+  const rankedTeams = [...game.teams].sort(
+    (a, b) => (rankOf.get(a.id) ?? Infinity) - (rankOf.get(b.id) ?? Infinity)
+  );
 
   const latestNews = [...game.eventLogs]
     .reverse()
@@ -90,7 +97,7 @@ export function TeacherLiveConsole() {
             >
               <span className="text-neutral-500">{i + 1}위</span>
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} />
-              {t.name} {t.score}점
+              {t.name}
             </motion.li>
           ))}
         </AnimatePresence>
